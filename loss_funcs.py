@@ -1,5 +1,6 @@
 from torch import nn
 import torch
+import torch.nn.functional as F
 
 class Regression_based_Loss(nn.Module):
     def init(self):
