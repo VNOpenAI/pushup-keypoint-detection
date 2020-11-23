@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, Dataset
 from torchvision.models import densenet169, resnet50
-import torchvision.transforms.functional as functional
 import torch.nn.functional as F
+from efficientnet_pytorch import EfficientNet
+from resnest.torch import resnest50
 
 class Efficient_head(nn.Module):
     def __init__(self, pre_model, n_kps=7):
@@ -55,14 +55,14 @@ def build_detection_based_model(model_name, n_kps=7):
     print('Not support this model!')
 
 def build_regression_based_model(model_name, n_kps=7):
-    if model_name == 'efficient'
+    if model_name == 'efficient':
         model = EfficientNet.from_pretrained('efficientnet-b2')
         for param in model.parameters():
             param.requires_grad = True
         in_feature = model._fc.in_features
         model._fc = nn.Sequential(nn.Linear(in_feature, 2*n_kps, bias=True), nn.Sigmoid())
         return model 
-    elif model_name == 'resnest'
+    elif model_name == 'resnest':
         model = resnest50(pretrained=True)
         for param in model.parameters():
             param.requires_grad = True

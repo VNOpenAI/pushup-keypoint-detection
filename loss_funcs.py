@@ -12,11 +12,11 @@ class Regression_based_Loss(nn.Module):
         coor_y_p = pred[:,1:][:,::2]
         mse = torch.mean(torch.mean((coor_x_t-coor_x_p)**2 + (coor_y_t-coor_y_p)**2, dim=1))
         ova_loss = mse_w*mse
-        if angle_w not None:
+        if angle_w is not None:
             ova_loss += angle_w*angle_loss(coor_x_p, coor_y_p, coor_x_t, coor_y_t, epsilon)
-        if regularize_w not None:
+        if regularize_w is not None:
             ova_loss += angle_w*angle_loss(coor_x_p, coor_y_p, coor_x_t, coor_y_t, epsilon)
-        return 5*angle_loss + 5*reg_loss
+        return ova_loss
 
     def angle_loss(self, coor_x_p, coor_y_p, coor_x_t, coor_y_t, epsilon=1e-5):
         ra1_t = torch.atan2((coor_y_t[:,1] - coor_y_t[:,0]), (coor_x_t[:,1] - coor_x_t[:,0] + epsilon))
