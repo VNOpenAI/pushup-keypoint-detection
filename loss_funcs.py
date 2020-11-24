@@ -3,20 +3,24 @@ import torch
 import torch.nn.functional as F
 
 class Regression_based_Loss(nn.Module):
-    def init(self):
+    def init(self, mse_w = 10, angle_w = None, regularize_w = None, epsilon=1e-5):
         super(Regression_based_Loss, self).init()
+        self.mse_w = mse_w
+        self.angle_w = angle_w
+        self.regularize_w = regularize_w
+        self.epsilon = epsilon
 
-    def forward(self, pred, target, mse_w = 10, angle_w = None, regularize_w = None, epsilon=1e-5):
+    def forward(self, pred, target):
         coor_x_t = target[:][:,::2]
         coor_y_t = target[:,1:][:,::2]
         coor_x_p = pred[:][:,::2]
         coor_y_p = pred[:,1:][:,::2]
         mse = torch.mean(torch.mean((coor_x_t-coor_x_p)**2 + (coor_y_t-coor_y_p)**2, dim=1))
-        ova_loss = mse_w*mse
-        if angle_w is not None:
-            ova_loss += angle_w*angle_loss(coor_x_p, coor_y_p, coor_x_t, coor_y_t, epsilon)
-        if regularize_w is not None:
-            ova_loss += angle_w*angle_loss(coor_x_p, coor_y_p, coor_x_t, coor_y_t, epsilon)
+        ova_loss = self.mse_w*mse
+        if self.angle_w is not None:
+            ova_loss += self.angle_w*angle_loss(coor_x_p, coor_y_p, coor_x_t, coor_y_t, self.epsilon)
+        if self.regularize_w is not None:
+            ova_loss += self.regularize_w*regularize_loss(coor_x_p, coor_y_p, self.epsilon)
         return ova_loss
 
     def angle_loss(self, coor_x_p, coor_y_p, coor_x_t, coor_y_t, epsilon=1e-5):
@@ -39,15 +43,18 @@ class Regression_based_Loss(nn.Module):
         return regularize_loss
 
 class Detection_based_Loss(nn.Module):
-    def init(self):
+    def init(self, n_kps=7, hm_w=4, os_w=1):
         super(Detection_base_Loss, self).init()
-    def forward(self, pred, target, n_kps=7, hm_w=4, os_w=1):
-        hm_pred = pred[:,:n_kps]
-        hm_target = target[:,:n_kps]
+        self.n_kps =n_kps
+        self.hm_w = hm_w
+        self.os_w = os_w
+    def forward(self, pred, target):
+        hm_pred = pred[:,:self.n_kps]
+        hm_target = target[:,:self.n_kps]
         lmap = (hm_target == 1.0)*1.0
         lmap = torch.cat([lmap, lmap], dim=1)
         heatmap_loss = F.binary_cross_entropy(hm_pred, hm_target, reduction='mean')
-        coor_pred = pred[:,n_kps:]*lmap
-        coor_target = target[:,n_kps:]*lmap
-        offset_loss = 1/(2*n_kps*pred.shape[0])*F.mse_loss(coor_pred, coor_target, reduction='sum')
-        return hm_w*heatmap_loss + os_w*offset_loss
+        coor_pred = pred[:,self.n_kps:]*lmap
+        coor_target = target[:,self.n_kps:]*lmap
+        offset_loss = 1/(2*self.n_kps*pred.shape[0])*F.mse_loss(coor_pred, coor_target, reduction='sum')
+        return self.hm_w*heatmap_loss + self.os_w*offset_loss

@@ -1,4 +1,4 @@
-import torch
+import torch, time, os
 import torch.nn as nn
 from torchvision.models import densenet169, resnet50
 import torch.nn.functional as F
@@ -71,3 +71,59 @@ def build_regression_based_model(model_name, n_kps=7):
         return model
     else:
         print('Not support this model!')
+
+class SHPE_model():
+    def __init__(self, pb_type, model_name, loss_func, optimizer, loader_dict, n_kps=7, lr_sch=None, epochs=120, ckp_dir='./checkpoint'):
+        if pb_type == 'detection':
+            self.model = build_detection_based_model(model_name, n_kps)
+        elif pb_type == 'regression':
+            self.model = build_regression_based_model(model_name, n_kps)
+        else:
+            raise Exception("not support this pb_type!!!")
+        self.criterion = loss_func
+        self.optimizer = optimizer
+        if 'train' not in list(loader_dict.keys()):
+            raise Exception("missing \'train\' keys in loader_dict!!!")
+        self.loader_dict = loader_dict
+        self.lr_sch = lr_sch
+        self.epochs = epochs
+        self.ckp_dir = ckp_dir
+    def train(self):
+        best_loss = 80.0
+        if os.path.exists(self.ckp_dir):
+            shutil.rmtree(self.ckp_dir)
+        os.mkdir(self.ckp_dir)
+        modes = list(self.loader_dict.keys())
+        for epoch in range(self.epochs):
+            s="Epoch [{}/{}]:".format(epoch+1, self.epochs)
+            start = time.time()
+            for mode in modes:
+                running_loss = 0.0
+                ova_len = self.loader_dict[mode].dataset.n_data
+                if mode == 'train':
+                    self.model.train()
+                else:
+                    self.model.eval()
+                for i, data in enumerate(self.loader_dict[mode]):
+                    imgs, labels = data[0].to(device), data[1].to(device)
+                    preds = self.model(imgs)
+                    loss = self.criterion(preds, labels)
+                    if mode == 'train':
+                        self.optimizer.zero_grad()
+                        loss.backward()
+                        self.optimizer.step()
+                    iter_len = imgs.size()[0]
+                    preds = (preds > 0.5).float()
+                    running_loss += loss.item()*iter_len
+                running_loss /= ova_len
+                s += "{}_loss {:.3f} -".format(mode, running_loss)
+            end = time.time()
+            s = s[:-1] + "({:.1f}s)".format(end-start)
+            print(s)
+            if running_loss < best_loss or (epoch+1)%10==0:
+                best_loss = running_loss
+                torch.save(self.model.state_dict(), os.path.join(=self.checkpoint_dir,'epoch'+str(epoch+1)+'.pt'))
+                print('new checkpoint saved!')
+            if self.lr_sch is not None:
+                self.lr_sch.step()
+                print('current lr: {:.4f}'.format(self.lr_sch.get_lr()[0]))
