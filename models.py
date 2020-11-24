@@ -4,6 +4,7 @@ from torchvision.models import densenet169, resnet50
 import torch.nn.functional as F
 from efficientnet_pytorch import EfficientNet
 from resnest.torch import resnest50
+import numpy as np
 
 class Efficient_head(nn.Module):
     def __init__(self, pre_model, n_kps=7):
@@ -136,37 +137,41 @@ class SHPE_model():
         checkpoint=torch.load(ckp_path)
         self.model.load_state_dict(checkpoint)
     def evaluate(self, loader):
-        model.eval()
+        self.model.eval()
         with torch.no_grad() as tng:
             ova_len = loader.dataset.n_data
             for i, data in enumerate(loader):
-                imgs, targets = data[0].to(device), data[1].to(device)
-                preds = model(imgs)
+                imgs, targets = data[0].to(self.device), data[1].to(self.device)
+                preds = self.model(imgs)
                 preds = preds.cpu().numpy()
                 targets = targets.cpu().numpy()
-                if self.pb == 'regression':
+                if self.pb_type == 'regression':
                     err = np.abs(preds-targets)
                     ova_loss += np.sum(err)
                 else:
                     heatmaps = preds[:,:self.n_kps]
                     flatten_hm = heatmaps.reshape((heatmaps.shape[0], self.n_kps, -1))
+                    flat_vectx = preds[:,self.n_kps:2*self.n_kps].reshape((heatmaps.shape[0], self.n_kps, -1))
+                    flat_vecty = preds[:,2*self.n_kps:].reshape((heatmaps.shape[0], self.n_kps, -1))
                     flat_max = np.argmax(flatten_hm, axis=-1)
                     max_mask = flatten_hm == np.expand_dims(np.max(flatten_hm, axis=-1), axis=-1)
                     cxs = flat_max%heatmaps.shape[-2]
                     cys = flat_max//heatmaps.shape[-2]
-                    ovxs = np.sum(preds[:,self.n_kps:2*self.n_kps]*max_mask, axis=(-1,-2))
-                    ovys = np.sum(preds[:,2*self.n_kps:]*max_mask, axis=(-1,-2))
+                    ovxs = np.sum(flat_vectx*max_mask, axis=-1)
+                    ovys = np.sum(flat_vectx*max_mask, axis=-1)
                     xs_p = (cxs*15+ovxs)/heatmaps.shape[-1]
                     ys_p = (cys*15+ovys)/heatmaps.shape[-2]
 
                     heatmaps = targets[:,:self.n_kps]
                     flatten_hm = heatmaps.reshape((heatmaps.shape[0], self.n_kps, -1))
+                    flat_vectx = preds[:,self.n_kps:2*self.n_kps].reshape((heatmaps.shape[0], self.n_kps, -1))
+                    flat_vecty = preds[:,2*self.n_kps:].reshape((heatmaps.shape[0], self.n_kps, -1))
                     flat_max = np.argmax(flatten_hm, axis=-1)
                     max_mask = flatten_hm == np.expand_dims(np.max(flatten_hm, axis=-1), axis=-1)
                     cxs = flat_max%heatmaps.shape[-2]
                     cys = flat_max//heatmaps.shape[-2]
-                    ovxs = np.sum(targets[:,self.n_kps:2*self.n_kps]*max_mask, axis=(-1,-2))
-                    ovys = np.sum(targets[:,2*self.n_kps:]*max_mask, axis=(-1,-2))
+                    ovxs = np.sum(flat_vectx*max_mask, axis=-1)
+                    ovys = np.sum(flat_vectx*max_mask, axis=-1)
                     xs_t = (cxs*15+ovxs)/heatmaps.shape[-1]
                     ys_t = (cys*15+ovys)/heatmaps.shape[-2]
 
