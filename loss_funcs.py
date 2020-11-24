@@ -3,8 +3,8 @@ import torch
 import torch.nn.functional as F
 
 class Regression_based_Loss(nn.Module):
-    def init(self, mse_w = 10, angle_w = None, regularize_w = None, epsilon=1e-5):
-        super(Regression_based_Loss, self).init()
+    def __init__(self, mse_w = 10, angle_w = None, regularize_w = None, epsilon=1e-5):
+        super(Regression_based_Loss, self).__init__()
         self.mse_w = mse_w
         self.angle_w = angle_w
         self.regularize_w = regularize_w
@@ -43,8 +43,8 @@ class Regression_based_Loss(nn.Module):
         return regularize_loss
 
 class Detection_based_Loss(nn.Module):
-    def init(self, n_kps=7, hm_w=4, os_w=1):
-        super(Detection_base_Loss, self).init()
+    def __init__(self, n_kps=7, hm_w=4, os_w=1):
+        super(Detection_based_Loss, self).__init__()
         self.n_kps =n_kps
         self.hm_w = hm_w
         self.os_w = os_w

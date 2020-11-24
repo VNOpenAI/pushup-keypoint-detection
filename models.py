@@ -1,4 +1,4 @@
-import torch, time, os
+import torch, time, os, shutil
 import torch.nn as nn
 from torchvision.models import densenet169, resnet50
 import torch.nn.functional as F
@@ -73,19 +73,24 @@ def build_regression_based_model(model_name, n_kps=7):
         print('Not support this model!')
 
 class SHPE_model():
-    def __init__(self, pb_type, model_name, loss_func, optimizer, loader_dict, n_kps=7, lr_sch=None, epochs=120, ckp_dir='./checkpoint'):
+    def __init__(self, pb_type, model_name, loss_func, optimizer, loader_dict, lr=3e-4, n_kps=7, use_lr_sch=False, epochs=120, ckp_dir='./checkpoint'):
         if pb_type == 'detection':
             self.model = build_detection_based_model(model_name, n_kps)
         elif pb_type == 'regression':
             self.model = build_regression_based_model(model_name, n_kps)
         else:
             raise Exception("not support this pb_type!!!")
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.model.to(self.device)
         self.criterion = loss_func
-        self.optimizer = optimizer
+        self.optimizer = optimizer(self.model.parameters(),lr)
         if 'train' not in list(loader_dict.keys()):
             raise Exception("missing \'train\' keys in loader_dict!!!")
         self.loader_dict = loader_dict
-        self.lr_sch = lr_sch
+        if use_lr_sch:
+            self.lr_sch = torch.optim.lr_scheduler.StepLR(self.optimizer, 80, 1/3)
+        else:
+            self.lr_sch = None
         self.epochs = epochs
         self.ckp_dir = ckp_dir
     def train(self):
@@ -105,7 +110,7 @@ class SHPE_model():
                 else:
                     self.model.eval()
                 for i, data in enumerate(self.loader_dict[mode]):
-                    imgs, labels = data[0].to(device), data[1].to(device)
+                    imgs, labels = data[0].to(self.device), data[1].to(self.device)
                     preds = self.model(imgs)
                     loss = self.criterion(preds, labels)
                     if mode == 'train':
@@ -122,7 +127,7 @@ class SHPE_model():
             print(s)
             if running_loss < best_loss or (epoch+1)%10==0:
                 best_loss = running_loss
-                torch.save(self.model.state_dict(), os.path.join(=self.checkpoint_dir,'epoch'+str(epoch+1)+'.pt'))
+                torch.save(self.model.state_dict(), os.path.join(self.ckp_dir,'epoch'+str(epoch+1)+'.pt'))
                 print('new checkpoint saved!')
             if self.lr_sch is not None:
                 self.lr_sch.step()
