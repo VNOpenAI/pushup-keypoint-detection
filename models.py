@@ -73,7 +73,10 @@ def build_regression_based_model(model_name, n_kps=7):
         print('Not support this model!')
 
 class SHPE_model():
-    def __init__(self, pb_type, model_name, loss_func, optimizer, loader_dict, lr=3e-4, n_kps=7, use_lr_sch=False, epochs=120, ckp_dir='./checkpoint'):
+    def __init__(self, pb_type='detection', model_name='resnest', n_kps=7):
+        self.pb_type = pb_type
+        self.model_name = model_name
+        self.n_kps = n_kps
         if pb_type == 'detection':
             self.model = build_detection_based_model(model_name, n_kps)
         elif pb_type == 'regression':
@@ -82,41 +85,38 @@ class SHPE_model():
             raise Exception("not support this pb_type!!!")
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.model.to(self.device)
-        self.criterion = loss_func
-        self.optimizer = optimizer(self.model.parameters(),lr)
+    def train(self, loader_dict, loss_func, optimizer, lr=3e-4, use_lr_sch=False, epochs=120, ckp_dir='./checkpoint'):
+        criterion = loss_func
+        optimizer = optimizer(self.model.parameters(),lr)
         if 'train' not in list(loader_dict.keys()):
             raise Exception("missing \'train\' keys in loader_dict!!!")
-        self.loader_dict = loader_dict
         if use_lr_sch:
-            self.lr_sch = torch.optim.lr_scheduler.StepLR(self.optimizer, 80, 1/3)
+            lr_sch = torch.optim.lr_scheduler.StepLR(optimizer, 80, 1/3)
         else:
-            self.lr_sch = None
-        self.epochs = epochs
-        self.ckp_dir = ckp_dir
-    def train(self):
+            lr_sch = None
         best_loss = 80.0
-        if os.path.exists(self.ckp_dir):
-            shutil.rmtree(self.ckp_dir)
-        os.mkdir(self.ckp_dir)
-        modes = list(self.loader_dict.keys())
-        for epoch in range(self.epochs):
-            s="Epoch [{}/{}]:".format(epoch+1, self.epochs)
+        if os.path.exists(ckp_dir):
+            shutil.rmtree(ckp_dir)
+        os.mkdir(ckp_dir)
+        modes = list(loader_dict.keys())
+        for epoch in range(epochs):
+            s="Epoch [{}/{}]:".format(epoch+1, epochs)
             start = time.time()
             for mode in modes:
                 running_loss = 0.0
-                ova_len = self.loader_dict[mode].dataset.n_data
+                ova_len = loader_dict[mode].dataset.n_data
                 if mode == 'train':
                     self.model.train()
                 else:
                     self.model.eval()
-                for i, data in enumerate(self.loader_dict[mode]):
+                for i, data in enumerate(loader_dict[mode]):
                     imgs, labels = data[0].to(self.device), data[1].to(self.device)
                     preds = self.model(imgs)
-                    loss = self.criterion(preds, labels)
+                    loss = criterion(preds, labels)
                     if mode == 'train':
-                        self.optimizer.zero_grad()
+                        optimizer.zero_grad()
                         loss.backward()
-                        self.optimizer.step()
+                        optimizer.step()
                     iter_len = imgs.size()[0]
                     preds = (preds > 0.5).float()
                     running_loss += loss.item()*iter_len
@@ -127,8 +127,48 @@ class SHPE_model():
             print(s)
             if running_loss < best_loss or (epoch+1)%10==0:
                 best_loss = running_loss
-                torch.save(self.model.state_dict(), os.path.join(self.ckp_dir,'epoch'+str(epoch+1)+'.pt'))
+                torch.save(self.model.state_dict(), os.path.join(ckp_dir,'epoch'+str(epoch+1)+'.pt'))
                 print('new checkpoint saved!')
-            if self.lr_sch is not None:
-                self.lr_sch.step()
-                print('current lr: {:.4f}'.format(self.lr_sch.get_lr()[0]))
+            if lr_sch is not None:
+                lr_sch.step()
+                print('current lr: {:.4f}'.format(lr_sch.get_lr()[0]))
+    def load_ckp(self, ckp_path):
+        checkpoint=torch.load(ckp_path)
+        self.model.load_state_dict(checkpoint)
+    def evaluate(self, loader):
+        model.eval()
+        with torch.no_grad() as tng:
+            ova_len = loader.dataset.n_data
+            for i, data in enumerate(loader):
+                imgs, targets = data[0].to(device), data[1].to(device)
+                preds = model(imgs)
+                preds = preds.cpu().numpy()
+                targets = targets.cpu().numpy()
+                if self.pb == 'regression':
+                    err = np.abs(preds-targets)
+                    ova_loss += np.sum(err)
+                else:
+                    heatmaps = preds[:,:self.n_kps]
+                    flatten_hm = heatmaps.reshape((heatmaps.shape[0], self.n_kps, -1))
+                    flat_max = np.argmax(flatten_hm, axis=-1)
+                    max_mask = flatten_hm == np.expand_dims(np.max(flatten_hm, axis=-1), axis=-1)
+                    cxs = flat_max%heatmaps.shape[-2]
+                    cys = flat_max//heatmaps.shape[-2]
+                    ovxs = np.sum(preds[:,self.n_kps:2*self.n_kps]*max_mask, axis=(-1,-2))
+                    ovys = np.sum(preds[:,2*self.n_kps:]*max_mask, axis=(-1,-2))
+                    xs_p = (cxs*15+ovxs)/heatmaps.shape[-1]
+                    ys_p = (cys*15+ovys)/heatmaps.shape[-2]
+
+                    heatmaps = targets[:,:self.n_kps]
+                    flatten_hm = heatmaps.reshape((heatmaps.shape[0], self.n_kps, -1))
+                    flat_max = np.argmax(flatten_hm, axis=-1)
+                    max_mask = flatten_hm == np.expand_dims(np.max(flatten_hm, axis=-1), axis=-1)
+                    cxs = flat_max%heatmaps.shape[-2]
+                    cys = flat_max//heatmaps.shape[-2]
+                    ovxs = np.sum(targets[:,self.n_kps:2*self.n_kps]*max_mask, axis=(-1,-2))
+                    ovys = np.sum(targets[:,2*self.n_kps:]*max_mask, axis=(-1,-2))
+                    xs_t = (cxs*15+ovxs)/heatmaps.shape[-1]
+                    ys_t = (cys*15+ovys)/heatmaps.shape[-2]
+
+                    ova_loss = np.sum(np.abs(xs_t-xs_p) + np.abs(ys_t-ys_p))
+        return ova_loss/(ova_len*14)
