@@ -67,7 +67,7 @@ def build_regression_based_model(model_name, n_kps=7):
         model = resnest50(pretrained=True)
         for param in model.parameters():
             param.requires_grad = True
-        in_feature = model._fc.in_features
+        in_feature = model.fc.in_features
         model.fc = nn.Sequential(nn.Linear(in_feature, 2*n_kps, bias=True), nn.Sigmoid())
         return model
     else:
