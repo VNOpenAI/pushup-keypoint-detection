@@ -74,7 +74,7 @@ def build_regression_based_model(model_name, n_kps=7):
         print('Not support this model!')
 
 class SHPE_model():
-    def __init__(self, pb_type='detection', model_name='resnest', n_kps=7):
+    def __init__(self, pb_type='detection', model_name='resnest', n_kps=7, define_model=None):
         self.pb_type = pb_type
         self.model_name = model_name
         self.n_kps = n_kps
@@ -82,6 +82,10 @@ class SHPE_model():
             self.model = build_detection_based_model(model_name, n_kps)
         elif pb_type == 'regression':
             self.model = build_regression_based_model(model_name, n_kps)
+        elif pb_type == 'define':
+            if define_model is None:
+                raise Exception("not define model!!!")
+            self.model = define_model
         else:
             raise Exception("not support this pb_type!!!")
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
