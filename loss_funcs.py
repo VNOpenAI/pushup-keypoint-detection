@@ -1,6 +1,7 @@
 from torch import nn
 import torch
 import torch.nn.functional as F
+import numpy as np
 
 class Regression_based_Loss(nn.Module):
     def __init__(self, mse_w = 10, angle_w = None, regularize_w = None, epsilon=1e-5):
@@ -18,9 +19,9 @@ class Regression_based_Loss(nn.Module):
         mse = torch.mean(torch.mean((coor_x_t-coor_x_p)**2 + (coor_y_t-coor_y_p)**2, dim=1))
         ova_loss = self.mse_w*mse
         if self.angle_w is not None:
-            ova_loss += self.angle_w*angle_loss(coor_x_p, coor_y_p, coor_x_t, coor_y_t, self.epsilon)
+            ova_loss += self.angle_w*self.angle_loss(coor_x_p, coor_y_p, coor_x_t, coor_y_t, self.epsilon)
         if self.regularize_w is not None:
-            ova_loss += self.regularize_w*regularize_loss(coor_x_p, coor_y_p, self.epsilon)
+            ova_loss += self.regularize_w*self.regularize_loss(coor_x_p, coor_y_p, self.epsilon)
         return ova_loss
 
     def angle_loss(self, coor_x_p, coor_y_p, coor_x_t, coor_y_t, epsilon=1e-5):
