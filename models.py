@@ -171,7 +171,7 @@ class SHPE_model():
                 imgs_new = np.stack([imgs_new[...,0], imgs_new[...,1], imgs_new[...,2]], axis=1)
                 imgs_new = torch.from_numpy(imgs_new)
                 img_grid = torchvision.utils.make_grid(imgs_new)
-                writer.add_image('visual_img', {str(epoch+1): img_grid})
+                writer.add_image(str(epoch+1)+'_visual_img', img_grid)
             if running_loss < best_loss or (epoch+1)%10==0:
                 best_loss = running_loss
                 torch.save(self.model.state_dict(), os.path.join(ckp_dir,'epoch'+str(epoch+1)+'.pt'))
