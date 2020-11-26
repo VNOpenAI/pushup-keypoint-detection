@@ -83,13 +83,13 @@ def preprocessed_img_test(img, img_size):
     if oh > ow:
         new_img = np.zeros((oh, oh, 3), np.uint8)
         cl = ((oh-ow)//2)
-        new_img[:,cl:cl+ow] = frame
+        new_img[:,cl:cl+ow] = img
         clx = cl
         cly = 0
     else:
         new_img = np.zeros((ow, ow, 3), np.uint8)
         cl = ((ow-oh)//2)
-        new_img[cl:cl+oh,:] = frame
+        new_img[cl:cl+oh,:] = img
         clx = 0
         cly = cl
     new_img = trans(new_img)
@@ -116,6 +116,7 @@ class SHPE_model():
             raise Exception("not support this pb_type!!!")
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.model.to(self.device)
+
     def train(self, loader_dict, loss_func, optimizer, lr=3e-4, use_lr_sch=False, epochs=120, ckp_dir='./checkpoint', writer=None):
         criterion = loss_func
         optimizer = optimizer(self.model.parameters(),lr)
@@ -216,7 +217,7 @@ class SHPE_model():
         img, dmax, clx, cly = preprocessed_img_test(img_in, self.img_size)
         img = img.to(self.device)
         preds = self.predict(img)
-        preds = (preds[0]*dmax).astype(np.int323) - np.array([clx, cly])
+        preds = (preds[0]*dmax).astype(np.int32) - np.array([clx, cly])
         return preds
     
     def pred_video(self, video_path, output_path):
