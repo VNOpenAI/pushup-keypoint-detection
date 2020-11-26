@@ -1,7 +1,8 @@
-import torch, time, os, shutil
+import torch, time, os, shutil, cv2
 import torch.nn as nn
 from torchvision.models import densenet169, resnet50
 import torch.nn.functional as F
+import torchvision.transforms as transforms
 from efficientnet_pytorch import EfficientNet
 from resnest.torch import resnest50
 import numpy as np
@@ -73,24 +74,49 @@ def build_regression_based_model(model_name, n_kps=7):
     else:
         print('Not support this model!')
 
+def preprocessed_img_test(img, img_size):
+    trans = transforms.Compose([transforms.ToPILImage(),
+                                transforms.Resize(img_size[:2]),
+                                transforms.ToTensor()
+    ])
+    oh, ow = img.shape[:2]
+    if oh > ow:
+        new_img = np.zeros((oh, oh, 3), np.uint8)
+        cl = ((oh-ow)//2)
+        new_img[:,cl:cl+ow] = frame
+        clx = cl
+        cly = 0
+    else:
+        new_img = np.zeros((ow, ow, 3), np.uint8)
+        cl = ((ow-oh)//2)
+        new_img[cl:cl+oh,:] = frame
+        clx = 0
+        cly = cl
+    new_img = trans(new_img)
+    new_img = torch.unsqueeze(new_img, 0)
+    return new_img, max([oh, ow]), clx, cly
+
 class SHPE_model():
-    def __init__(self, pb_type='detection', model_name='resnest', n_kps=7, define_model=None):
+    def __init__(self, pb_type='detection', model_name='resnest', n_kps=7, define_model=None, define_img_size=None):
         self.pb_type = pb_type
         self.model_name = model_name
         self.n_kps = n_kps
         if pb_type == 'detection':
             self.model = build_detection_based_model(model_name, n_kps)
+            self.img_size = (225,225)
         elif pb_type == 'regression':
             self.model = build_regression_based_model(model_name, n_kps)
+            self.img_size = (224,224)
         elif pb_type == 'define':
             if define_model is None:
                 raise Exception("not define model!!!")
             self.model = define_model
+            self.img_size = define_img_size
         else:
             raise Exception("not support this pb_type!!!")
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.model.to(self.device)
-    def train(self, loader_dict, loss_func, optimizer, lr=3e-4, use_lr_sch=False, epochs=120, ckp_dir='./checkpoint'):
+    def train(self, loader_dict, loss_func, optimizer, lr=3e-4, use_lr_sch=False, epochs=120, ckp_dir='./checkpoint', writer=None):
         criterion = loss_func
         optimizer = optimizer(self.model.parameters(),lr)
         if 'train' not in list(loader_dict.keys()):
@@ -126,10 +152,23 @@ class SHPE_model():
                     preds = (preds > 0.5).float()
                     running_loss += loss.item()*iter_len
                 running_loss /= ova_len
+                if writer is not None:
+                    writer.add_scalar('loss', {mode: running_loss}, epoch)
                 s += "{}_loss {:.3f} -".format(mode, running_loss)
             end = time.time()
             s = s[:-1] + "({:.1f}s)".format(end-start)
             print(s)
+            if writer is not None:
+                n_visual = 4
+                preds = self.predict(imgs[:n_visual])
+                imgs_new = imgs[:n_visual].cpu().numpy()
+                imgs_new = np.stack([imgs_new[:,0], imgs_new[:,1], imgs_new[:,2]], axis=-1)
+                preds = (preds*self.img_size[:2]).astype(int32)
+                for img_new in imgs_new:
+                    cv2.polylines(img_new, [preds], True, (0,0,255), 2)
+                imgs_new = np.stack([imgs_new[...,0], imgs_new[...,1], imgs_new[...,2]], axis=1)
+                img_grid = torchvision.utils.make_grid(imgs_new)
+                writer.add_image('visual_img', {str(epoch+1): img_grid})
             if running_loss < best_loss or (epoch+1)%10==0:
                 best_loss = running_loss
                 torch.save(self.model.state_dict(), os.path.join(ckp_dir,'epoch'+str(epoch+1)+'.pt'))
@@ -137,9 +176,68 @@ class SHPE_model():
             if lr_sch is not None:
                 lr_sch.step()
                 print('current lr: {:.4f}'.format(lr_sch.get_lr()[0]))
+
     def load_ckp(self, ckp_path):
         checkpoint=torch.load(ckp_path)
         self.model.load_state_dict(checkpoint)
+
+    def predict(self, img):
+        preds = self.model(img)
+        preds = preds.cpu().numpy()
+        if self.pb_type == 'regression':
+            preds = np.vstack([preds[:,::2], preds[:,1:][:,::2]]).T
+        elif self.pb_type == 'detection':
+            # coor_x = []
+            # coor_y = []
+            # for i,pred in enumerate(preds[:7]):
+            #     cx = np.argmax(pred)%pred.shape[0]
+            #     cy = np.argmax(pred)//pred.shape[0]
+            #     ovx = preds[i+7][cy,cx]*15
+            #     ovy = preds[i+14][cy,cx]*15
+            #     coor_x.append(int((cx*15+ovx)*dmax/self.img_size[1])-clx)
+            #     coor_y.append(int((cy*15+ovy)*dmax/self.img_size[0])-cly)
+            # preds = np.vstack([coor_x, coor_y]).T
+            heatmaps = preds[:,:self.n_kps]
+            flatten_hm = heatmaps.reshape((heatmaps.shape[0], self.n_kps, -1))
+            flat_vectx = preds[:,self.n_kps:2*self.n_kps].reshape((heatmaps.shape[0], self.n_kps, -1))
+            flat_vecty = preds[:,2*self.n_kps:].reshape((heatmaps.shape[0], self.n_kps, -1))
+            flat_max = np.argmax(flatten_hm, axis=-1)
+            max_mask = flatten_hm == np.expand_dims(np.max(flatten_hm, axis=-1), axis=-1)
+            cxs = flat_max%heatmaps.shape[-2]
+            cys = flat_max//heatmaps.shape[-2]
+            ovxs = np.sum(flat_vectx*max_mask, axis=-1)
+            ovys = np.sum(flat_vectx*max_mask, axis=-1)
+            xs_p = (cxs*15+ovxs)/heatmaps.shape[-1]
+            ys_p = (cys*15+ovys)/heatmaps.shape[-2]
+            preds = np.vstack([xs_p, ys_p]).T
+        return preds
+
+    def predict_raw(self, img_in):
+        img, dmax, clx, cly = preprocessed_img_test(img_in, self.img_size)
+        img = img.to(self.device)
+        preds = self.predict(img)
+        preds = (preds[0]*dmax).astype(np.int323) - np.array([clx, cly])
+        return preds
+    
+    def pred_video(self, video_path, output_path):
+        self.model.eval()
+        cap = cv2.VideoCapture(video_path)
+        print(int(cap.get(cv2.CAP_PROP_FRAME_COUNT)))
+        frame_width = int(cap.get(3))
+        frame_height = int(cap.get(4))
+        out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc('M','J','P','G'), 50, (frame_width, frame_height))
+        with torch.no_grad() as tng:
+            while(cap.isOpened()):
+                ret, frame = cap.read()
+                if ret == True:
+                    preds = self.predict_raw(frame)
+                    cv2.polylines(frame, [preds], True, (0,0,255), 2)
+                    out.write(frame)
+                else:
+                    break
+            cap.release()
+            out.release()
+
     def evaluate(self, loader):
         self.model.eval()
         with torch.no_grad() as tng:
@@ -180,4 +278,5 @@ class SHPE_model():
                     ys_t = (cys*15+ovys)/heatmaps.shape[-2]
 
                     ova_loss = np.sum(np.abs(xs_t-xs_p) + np.abs(ys_t-ys_p))
+        
         return ova_loss/(ova_len*14)
