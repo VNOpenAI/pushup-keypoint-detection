@@ -188,29 +188,19 @@ class SHPE_model():
         if self.pb_type == 'regression':
             preds = np.vstack([preds[:,::2], preds[:,1:][:,::2]]).T
         elif self.pb_type == 'detection':
-            # coor_x = []
-            # coor_y = []
-            # for i,pred in enumerate(preds[:7]):
-            #     cx = np.argmax(pred)%pred.shape[0]
-            #     cy = np.argmax(pred)//pred.shape[0]
-            #     ovx = preds[i+7][cy,cx]*15
-            #     ovy = preds[i+14][cy,cx]*15
-            #     coor_x.append(int((cx*15+ovx)*dmax/self.img_size[1])-clx)
-            #     coor_y.append(int((cy*15+ovy)*dmax/self.img_size[0])-cly)
-            # preds = np.vstack([coor_x, coor_y]).T
             heatmaps = preds[:,:self.n_kps]
             flatten_hm = heatmaps.reshape((heatmaps.shape[0], self.n_kps, -1))
             flat_vectx = preds[:,self.n_kps:2*self.n_kps].reshape((heatmaps.shape[0], self.n_kps, -1))
             flat_vecty = preds[:,2*self.n_kps:].reshape((heatmaps.shape[0], self.n_kps, -1))
             flat_max = np.argmax(flatten_hm, axis=-1)
             max_mask = flatten_hm == np.expand_dims(np.max(flatten_hm, axis=-1), axis=-1)
-            cxs = flat_max%heatmaps.shape[-2]
-            cys = flat_max//heatmaps.shape[-2]
+            cxs = flat_max%(heatmaps.shape[-2])
+            cys = flat_max//(heatmaps.shape[-2])
             ovxs = np.sum(flat_vectx*max_mask, axis=-1)
             ovys = np.sum(flat_vectx*max_mask, axis=-1)
-            xs_p = (cxs*15+ovxs)/heatmaps.shape[-1]
-            ys_p = (cys*15+ovys)/heatmaps.shape[-2]
-            preds = np.vstack([xs_p, ys_p]).T
+            xs_p = (cxs*15+ovxs)/self.img_size[1]
+            ys_p = (cys*15+ovys)/self.img_size[2]
+            preds = np.stack([xs_p, ys_p], axis=1)
         return preds
 
     def predict_raw(self, img_in):
@@ -275,8 +265,8 @@ class SHPE_model():
                     cys = flat_max//heatmaps.shape[-2]
                     ovxs = np.sum(flat_vectx*max_mask, axis=-1)
                     ovys = np.sum(flat_vectx*max_mask, axis=-1)
-                    xs_t = (cxs*15+ovxs)/heatmaps.shape[-1]
-                    ys_t = (cys*15+ovys)/heatmaps.shape[-2]
+                    xs_t = (cxs*15+ovxs)/self.img_size[1]
+                    ys_t = (cys*15+ovys)/self.img_size[0]
 
                     ova_loss = np.sum(np.abs(xs_t-xs_p) + np.abs(ys_t-ys_p))
         
