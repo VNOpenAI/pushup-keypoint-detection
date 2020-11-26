@@ -185,7 +185,7 @@ class SHPE_model():
         self.model.load_state_dict(checkpoint)
 
     def predict(self, img):
-        self.model.eval():
+        self.model.eval()
         with torch.no_grad() as tng:
             preds = self.model(img)
             preds = preds.cpu().numpy()
