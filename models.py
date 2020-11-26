@@ -1,5 +1,6 @@
 import torch, time, os, shutil, cv2
 import torch.nn as nn
+import torchvision
 from torchvision.models import densenet169, resnet50
 import torch.nn.functional as F
 import torchvision.transforms as transforms
@@ -154,7 +155,7 @@ class SHPE_model():
                     running_loss += loss.item()*iter_len
                 running_loss /= ova_len
                 if writer is not None:
-                    writer.add_scalar('loss', {mode: running_loss}, epoch)
+                    writer.add_scalars('loss', {mode: running_loss}, epoch)
                 s += "{}_loss {:.3f} -".format(mode, running_loss)
             end = time.time()
             s = s[:-1] + "({:.1f}s)".format(end-start)
@@ -164,10 +165,11 @@ class SHPE_model():
                 preds = self.predict(imgs[:n_visual])
                 imgs_new = imgs[:n_visual].cpu().numpy()
                 imgs_new = np.stack([imgs_new[:,0], imgs_new[:,1], imgs_new[:,2]], axis=-1)
-                preds = (preds*self.img_size[:2]).astype(int32)
-                for img_new in imgs_new:
-                    cv2.polylines(img_new, [preds], True, (0,0,255), 2)
+                preds = (preds*self.img_size[:2]).astype(np.int32)
+                for z, img_new in enumerate(imgs_new):
+                    cv2.polylines(img_new, [preds[z]], True, (0,0,255), 2)
                 imgs_new = np.stack([imgs_new[...,0], imgs_new[...,1], imgs_new[...,2]], axis=1)
+                imgs_new = torch.from_numpy(imgs_new)
                 img_grid = torchvision.utils.make_grid(imgs_new)
                 writer.add_image('visual_img', {str(epoch+1): img_grid})
             if running_loss < best_loss or (epoch+1)%10==0:
@@ -183,24 +185,26 @@ class SHPE_model():
         self.model.load_state_dict(checkpoint)
 
     def predict(self, img):
-        preds = self.model(img)
-        preds = preds.cpu().numpy()
-        if self.pb_type == 'regression':
-            preds = np.vstack([preds[:,::2], preds[:,1:][:,::2]]).T
-        elif self.pb_type == 'detection':
-            heatmaps = preds[:,:self.n_kps]
-            flatten_hm = heatmaps.reshape((heatmaps.shape[0], self.n_kps, -1))
-            flat_vectx = preds[:,self.n_kps:2*self.n_kps].reshape((heatmaps.shape[0], self.n_kps, -1))
-            flat_vecty = preds[:,2*self.n_kps:].reshape((heatmaps.shape[0], self.n_kps, -1))
-            flat_max = np.argmax(flatten_hm, axis=-1)
-            max_mask = flatten_hm == np.expand_dims(np.max(flatten_hm, axis=-1), axis=-1)
-            cxs = flat_max%(heatmaps.shape[-2])
-            cys = flat_max//(heatmaps.shape[-2])
-            ovxs = np.sum(flat_vectx*max_mask, axis=-1)
-            ovys = np.sum(flat_vectx*max_mask, axis=-1)
-            xs_p = (cxs*15+ovxs)/self.img_size[1]
-            ys_p = (cys*15+ovys)/self.img_size[2]
-            preds = np.stack([xs_p, ys_p], axis=1)
+        self.model.eval():
+        with torch.no_grad() as tng:
+            preds = self.model(img)
+            preds = preds.cpu().numpy()
+            if self.pb_type == 'regression':
+                preds = np.stack([preds[:,::2], preds[:,1:][:,::2]], axis=-1)
+            elif self.pb_type == 'detection':
+                heatmaps = preds[:,:self.n_kps]
+                flatten_hm = heatmaps.reshape((heatmaps.shape[0], self.n_kps, -1))
+                flat_vectx = preds[:,self.n_kps:2*self.n_kps].reshape((heatmaps.shape[0], self.n_kps, -1))
+                flat_vecty = preds[:,2*self.n_kps:].reshape((heatmaps.shape[0], self.n_kps, -1))
+                flat_max = np.argmax(flatten_hm, axis=-1)
+                max_mask = flatten_hm == np.expand_dims(np.max(flatten_hm, axis=-1), axis=-1)
+                cxs = flat_max%(heatmaps.shape[-2])
+                cys = flat_max//(heatmaps.shape[-2])
+                ovxs = np.sum(flat_vectx*max_mask, axis=-1)
+                ovys = np.sum(flat_vectx*max_mask, axis=-1)
+                xs_p = (cxs*15+ovxs)/self.img_size[1]
+                ys_p = (cys*15+ovys)/self.img_size[2]
+                preds = np.stack([xs_p, ys_p], axis=1)
         return preds
 
     def predict_raw(self, img_in):
@@ -211,23 +215,21 @@ class SHPE_model():
         return preds
     
     def pred_video(self, video_path, output_path):
-        self.model.eval()
         cap = cv2.VideoCapture(video_path)
         print(int(cap.get(cv2.CAP_PROP_FRAME_COUNT)))
         frame_width = int(cap.get(3))
         frame_height = int(cap.get(4))
         out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc('M','J','P','G'), 50, (frame_width, frame_height))
-        with torch.no_grad() as tng:
-            while(cap.isOpened()):
-                ret, frame = cap.read()
-                if ret == True:
-                    preds = self.predict_raw(frame)
-                    cv2.polylines(frame, [preds], True, (0,0,255), 2)
-                    out.write(frame)
-                else:
-                    break
-            cap.release()
-            out.release()
+        while(cap.isOpened()):
+            ret, frame = cap.read()
+            if ret == True:
+                preds = self.predict_raw(frame)
+                cv2.polylines(frame, [preds], True, (0,0,255), 2)
+                out.write(frame)
+            else:
+                break
+        cap.release()
+        out.release()
 
     def evaluate(self, loader):
         self.model.eval()
