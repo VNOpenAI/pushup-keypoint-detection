@@ -74,7 +74,7 @@ class SHPE_model():
                             running_metrics[key] += metrics[key](preds, labels).item()*iter_len/ova_len
                 if writer is not None:
                     for key in list(metrics.keys()):
-                        writer.add_scalars(key, {mode: running_metrics['key']}, epoch)
+                        writer.add_scalars(key, {mode: running_metrics[key]}, epoch)
                 for key in list(metrics.keys()):
                     s += "{}_{} {:.3f} - ".format(mode, key, running_metrics[key])
             end = time.time()
