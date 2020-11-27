@@ -69,11 +69,11 @@ class MAE(nn.Module):
         self.img_size = img_size
     def forward(self, pred, target):
         if self.pb_type == 'regression':
-            ova_loss = torch.mean(torch.sum(torch.abs(preds-targets), dim=-1)/(2*self.n_kps))
+            ova_loss = torch.mean(torch.sum(torch.abs(pred-target), dim=-1)/(2*self.n_kps))
         elif self.pb_type == 'detection':
             pred = heatmap2coor(pred, self.n_kps, self.img_size)
-            targets = heatmap2coor(targets, self.n_kps, self.img_size)
-            ova_loss = torch.mean(torch.sum(torch.abs(preds-targets), dim=(-1,-2))/(2*self.n_kps))
+            target = heatmap2coor(target, self.n_kps, self.img_size)
+            ova_loss = torch.mean(torch.sum(torch.abs(pred-target), dim=(-1,-2))/(2*self.n_kps))
         else:
             return None
         return ova_loss
