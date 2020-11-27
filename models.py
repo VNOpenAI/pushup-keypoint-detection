@@ -103,10 +103,17 @@ class SHPE_model():
         checkpoint=torch.load(ckp_path)
         self.model.load_state_dict(checkpoint)
 
+    def load_ckp_cpu(self, ckp_path):
+        checkpoint=torch.load(ckp_path, map_location=torch.device('cpu'))
+        self.model.load_state_dict(checkpoint)
+
     def predict(self, img):
         self.model.eval()
         with torch.no_grad() as tng:
+            # st = time.time()
             preds = self.model(img)
+            # en = time.time()
+            # print(en-st)
             preds = preds.cpu()
             if self.pb_type == 'regression':
                 preds = preds.numpy()
@@ -157,3 +164,23 @@ class SHPE_model():
                 else:
                     return None
         return ova_loss/(ova_len*2*self.n_kps)
+
+    def pred_live(self):
+        cap = cv2.VideoCapture(0)
+        print(int(cap.get(cv2.CAP_PROP_FRAME_COUNT)))
+        frame_width, frame_height = int(cap.get(3)), int(cap.get(4))
+        while(cap.isOpened()):
+            ret, frame = cap.read()
+            if ret == True:
+                st = time.time()
+                preds = self.predict_raw(frame)
+                cv2.polylines(frame, [preds], True, (0,0,255), 2)
+                en = time.time()
+                print(en-st)
+                cv2.imshow('frame',frame)
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
+            else:
+                break
+        cap.release()
+        cv2.destroyAllWindows()

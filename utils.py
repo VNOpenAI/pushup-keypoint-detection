@@ -12,6 +12,13 @@ class Efficient_head(nn.Module):
         self.pre_model = pre_model
         self.last_conv = nn.Conv2d(120, 3*n_kps, (1,1), 1)
         self.output = nn.Sigmoid()
+        for block in self.pre_model._blocks[16:]:
+            block = nn.Identity()
+        # self.pre_model._conv_head = nn.Identity()
+        # self.pre_model._bn1 = nn.Identity()
+        # self.pre_model._avg_pooling = nn.Identity()
+        # self.pre_model._dropout = nn.Identity()
+        # self.pre_model._fc = nn.Identity()
     def forward(self, x):
         x = self.pre_model._conv_stem(x)
         x = self.pre_model._bn0(x)
@@ -25,6 +32,9 @@ class ResNeSt_head(nn.Module):
     def __init__(self, pre_model, n_kps=7):
         super(ResNeSt_head, self).__init__()
         self.pre_model = pre_model
+        self.pre_model.layer4 = nn.Identity()
+        self.avgpool = nn.Identity()
+        self.fc = nn.Identity()
         self.last_conv = nn.Conv2d(1024, 3*n_kps, (1,1), 1)
         self.output = nn.Sigmoid()
     def forward(self, x):
@@ -47,7 +57,7 @@ def build_detection_based_model(model_name, n_kps=7):
     model = Efficient_head(pre_model, n_kps)
     return model
   elif model_name == 'resnest':
-    pre_model = resnest50(pretrained=True)
+    pre_model = resnest50(pretrained=False)
     for param in pre_model.parameters():
         param.requires_grad = True
     model = ResNeSt_head(pre_model, n_kps)
@@ -64,7 +74,7 @@ def build_regression_based_model(model_name, n_kps=7):
         model._fc = nn.Sequential(nn.Linear(in_feature, 2*n_kps, bias=True), nn.Sigmoid())
         return model 
     elif model_name == 'resnest':
-        model = resnest50(pretrained=True)
+        model = resnest50(pretrained=False)
         for param in model.parameters():
             param.requires_grad = True
         in_feature = model.fc.in_features
