@@ -65,7 +65,6 @@ class SHPE_model():
                         loss.backward()
                         optimizer.step()
                     iter_len = imgs.size()[0]
-                    # preds = (preds > 0.5).float()
                     running_loss = loss.item()*iter_len/ova_len
                     for key in list(metrics.keys()):
                         if key == 'loss':
@@ -108,11 +107,12 @@ class SHPE_model():
         self.model.eval()
         with torch.no_grad() as tng:
             preds = self.model(img)
-            preds = preds.cpu().numpy()
+            preds = preds.cpu()
             if self.pb_type == 'regression':
+                preds = preds.numpy()
                 preds = np.stack([preds[:,::2], preds[:,1:][:,::2]], axis=-1)
             elif self.pb_type == 'detection':
-                preds = heatmap2coor(preds, self.n_kps, self.img_size)
+                preds = heatmap2coor(preds, self.n_kps, self.img_size).numpy()
         return preds
 
     def predict_raw(self, img_in):
@@ -125,8 +125,7 @@ class SHPE_model():
     def pred_video(self, video_path, output_path):
         cap = cv2.VideoCapture(video_path)
         print(int(cap.get(cv2.CAP_PROP_FRAME_COUNT)))
-        frame_width = int(cap.get(3))
-        frame_height = int(cap.get(4))
+        frame_width, frame_height = int(cap.get(3)), int(cap.get(4))
         out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc('M','J','P','G'), 50, (frame_width, frame_height))
         while(cap.isOpened()):
             ret, frame = cap.read()
@@ -147,11 +146,9 @@ class SHPE_model():
             for i, data in enumerate(loader):
                 imgs, targets = data[0].to(self.device), data[1].to(self.device)
                 preds = self.model(imgs)
-                preds = preds.cpu()
-                targets = targets.cpu()
+                preds, targets = preds.cpu(), targets.cpu()
                 if self.pb_type == 'regression':
-                    preds = preds.numpy()
-                    targets = targets.numpy()
+                    preds, targets = preds.numpy(), targets.numpy()
                     ova_loss += np.sum(np.abs(preds-targets))
                 elif self.pb_type == 'detection':
                     preds = heatmap2coor(preds, self.n_kps, self.img_size).numpy()
