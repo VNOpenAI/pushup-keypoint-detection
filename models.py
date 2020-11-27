@@ -2,7 +2,7 @@ import torch, time, os, shutil, cv2
 import torchvision
 from torchvision.models import densenet169, resnet50
 import torch.nn.functional as F
-from utils import build_detection_based_model, build_regression_based_model, preprocessed_img_test, heatmap2coor
+from utils_t import build_detection_based_model, build_regression_based_model, preprocessed_img_test, heatmap2coor
 import numpy as np
 
 class SHPE_model():
