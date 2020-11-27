@@ -2,6 +2,7 @@ from torch import nn
 import torch
 import torch.nn.functional as F
 import numpy as np
+from utils import heatmap2coor
 
 class Regression_based_Loss(nn.Module):
     def __init__(self, mse_w = 10, angle_w = None, regularize_w = None, epsilon=1e-5):
@@ -59,3 +60,20 @@ class Detection_based_Loss(nn.Module):
         coor_target = target[:,self.n_kps:]*lmap
         offset_loss = 1/(2*self.n_kps*pred.shape[0])*F.mse_loss(coor_pred, coor_target, reduction='sum')
         return self.hm_w*heatmap_loss + self.os_w*offset_loss
+
+class MAE(nn.Module):
+    def __init__(self, pb_type='detection', n_kps=7, img_size=(225, 225)):
+        super(Detection_based_Loss, self).__init__()
+        self.n_kps =n_kps
+        self.pb_type = pb_type
+        self.img_size = img_size
+    def forward(self, pred, target):
+        if self.pb_type == 'regression':
+            ova_loss = torch.mean(torch.sum(torch.abs(preds-targets), dim=-1)/(2*self.n_kps))
+        elif self.pb_type == 'detection':
+            pred = heatmap2coor(pred, self.n_kps, self.img_size)
+            targets = heatmap2coor(targets, self.n_kps, self.img_size)
+            ova_loss = torch.mean(torch.sum(torch.abs(preds-targets), dim=(-1,-2))/(2*self.n_kps))
+        else:
+            return None
+        return ova_loss

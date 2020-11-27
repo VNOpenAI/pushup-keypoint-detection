@@ -147,14 +147,16 @@ class SHPE_model():
             for i, data in enumerate(loader):
                 imgs, targets = data[0].to(self.device), data[1].to(self.device)
                 preds = self.model(imgs)
-                preds = preds.cpu().numpy()
-                targets = targets.cpu().numpy()
+                preds = preds.cpu()
+                targets = targets.cpu()
                 if self.pb_type == 'regression':
+                    preds = preds.numpy()
+                    targets = targets.numpy()
                     ova_loss += np.sum(np.abs(preds-targets))
                 elif self.pb_type == 'detection':
-                    preds = heatmap2coor(preds, self.n_kps, self.img_size)
-                    targets = heatmap2coor(targets, self.n_kps, self.img_size)
+                    preds = heatmap2coor(preds, self.n_kps, self.img_size).numpy()
+                    targets = heatmap2coor(targets, self.n_kps, self.img_size).numpy()
                     ova_loss += np.sum(np.abs(preds-targets))
                 else:
                     return None
-        return ova_loss/(ova_len*14)
+        return ova_loss/(ova_len*2*self.n_kps)
