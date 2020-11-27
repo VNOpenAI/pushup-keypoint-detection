@@ -131,6 +131,7 @@ class SHPE_model():
         self.model.eval()
         with torch.no_grad() as tng:
             ova_len = loader.dataset.n_data
+            ova_loss = 0
             for i, data in enumerate(loader):
                 imgs, targets = data[0].to(self.device), data[1].to(self.device)
                 preds = self.model(imgs)
@@ -169,7 +170,7 @@ class SHPE_model():
                     xs_t = (cxs*15+ovxs)/self.img_size[1]
                     ys_t = (cys*15+ovys)/self.img_size[0]
 
-                    ova_loss = np.sum(np.abs(xs_t-xs_p) + np.abs(ys_t-ys_p))
+                    ova_loss += np.sum(np.abs(xs_t-xs_p) + np.abs(ys_t-ys_p))
         
         return ova_loss/(ova_len*14)
 
@@ -177,15 +178,38 @@ class SHPE_model():
         self.model.eval()
         with torch.no_grad() as tng:
             ova_len = loader.dataset.n_data
+            ova_loss = 0
             for i, data in enumerate(loader):
                 imgs, targets = data[0].to(self.device), data[1].to(self.device)
                 preds = self.model(imgs)
                 preds = preds.cpu().numpy()
                 targets = targets.cpu().numpy()
                 if self.pb_type == 'regression':
-                    ova_loss = np.sum(np.abs(preds-targets))
+                    ova_loss += np.sum(np.abs(preds-targets))
+                else:
+                    preds = heatmap2coor(preds, self.n_kps, self.img_size)
+                    xs_p = preds[:,:,0]
+                    ys_p = preds[:,:,1]
+                    targets = heatmap2coor(targets, self.n_kps, self.img_size)
+                    xs_t = targets[:,:,0]
+                    ys_t = targets[:,:,1]
+                    ova_loss += np.sum(np.abs(xs_t-xs_p) + np.abs(ys_t-ys_p))
+        return ova_loss/(ova_len*14)
+
+    def evaluate_new_2(self, loader):
+        self.model.eval()
+        with torch.no_grad() as tng:
+            ova_len = loader.dataset.n_data
+            ova_loss = 0
+            for i, data in enumerate(loader):
+                imgs, targets = data[0].to(self.device), data[1].to(self.device)
+                preds = self.model(imgs)
+                preds = preds.cpu().numpy()
+                targets = targets.cpu().numpy()
+                if self.pb_type == 'regression':
+                    ova_loss += np.sum(np.abs(preds-targets))
                 else:
                     preds = heatmap2coor(preds, self.n_kps, self.img_size)
                     targets = heatmap2coor(targets, self.n_kps, self.img_size)
-                    ova_loss = np.sum(np.abs(preds-targets))
+                    ova_loss += np.sum(np.abs(preds-targets))
         return ova_loss/(ova_len*14)
