@@ -63,7 +63,7 @@ class Detection_based_Loss(nn.Module):
 
 class MAE(nn.Module):
     def __init__(self, pb_type='detection', n_kps=7, img_size=(225, 225)):
-        super(Detection_based_Loss, self).__init__()
+        super(MAE, self).__init__()
         self.n_kps =n_kps
         self.pb_type = pb_type
         self.img_size = img_size
