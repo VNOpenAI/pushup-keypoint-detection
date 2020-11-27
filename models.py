@@ -2,7 +2,7 @@ import torch, time, os, shutil, cv2
 import torchvision
 from torchvision.models import densenet169, resnet50
 import torch.nn.functional as F
-from utils_t import build_detection_based_model, build_regression_based_model, preprocessed_img_test, heatmap2coor
+from utils import build_detection_based_model, build_regression_based_model, preprocessed_img_test, heatmap2coor
 import numpy as np
 
 class SHPE_model():
@@ -76,9 +76,9 @@ class SHPE_model():
                     for key in list(metrics.keys()):
                         writer.add_scalars(key, {mode: running_metrics['key']}, epoch)
                 for key in list(metrics.keys()):
-                    s += "{}_{} {:.3f} -".format(mode, key, running_metrics[key])
+                    s += "{}_{} {:.3f} - ".format(mode, key, running_metrics[key])
             end = time.time()
-            s = s[:-1] + "({:.1f}s)".format(end-start)
+            s = s[:-2] + "({:.1f}s)".format(end-start)
             print(s)
             # if writer is not None:
             #     n_visual = 4
