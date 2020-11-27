@@ -108,5 +108,5 @@ def heatmap2coor(hp_preds, n_kps = 7, img_size=(225,225)):
     ovys = np.sum(flat_vectx*max_mask, axis=-1)
     xs_p = (cxs*15+ovxs)/img_size[1]
     ys_p = (cys*15+ovys)/img_size[0]
-    hp_preds = np.stack([xs_p, ys_p], axis=1)
+    hp_preds = np.stack([xs_p, ys_p], axis=-1)
     return hp_preds
