@@ -14,11 +14,11 @@ class Efficient_head(nn.Module):
         self.output = nn.Sigmoid()
         for block in self.pre_model._blocks[16:]:
             block = nn.Identity()
-        # self.pre_model._conv_head = nn.Identity()
-        # self.pre_model._bn1 = nn.Identity()
-        # self.pre_model._avg_pooling = nn.Identity()
-        # self.pre_model._dropout = nn.Identity()
-        # self.pre_model._fc = nn.Identity()
+        self.pre_model._conv_head = nn.Identity()
+        self.pre_model._bn1 = nn.Identity()
+        self.pre_model._avg_pooling = nn.Identity()
+        self.pre_model._dropout = nn.Identity()
+        self.pre_model._fc = nn.Identity()
     def forward(self, x):
         x = self.pre_model._conv_stem(x)
         x = self.pre_model._bn0(x)

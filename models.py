@@ -100,20 +100,13 @@ class SHPE_model():
                 print('current lr: {:.4f}'.format(lr_sch.get_lr()[0]))
 
     def load_ckp(self, ckp_path):
-        checkpoint=torch.load(ckp_path)
-        self.model.load_state_dict(checkpoint)
-
-    def load_ckp_cpu(self, ckp_path):
-        checkpoint=torch.load(ckp_path, map_location=torch.device('cpu'))
+        checkpoint=torch.load(ckp_path, map_location=self.device)
         self.model.load_state_dict(checkpoint)
 
     def predict(self, img):
         self.model.eval()
         with torch.no_grad() as tng:
-            # st = time.time()
             preds = self.model(img)
-            # en = time.time()
-            # print(en-st)
             preds = preds.cpu()
             if self.pb_type == 'regression':
                 preds = preds.numpy()
@@ -145,26 +138,6 @@ class SHPE_model():
         cap.release()
         out.release()
 
-    def evaluate(self, loader):
-        self.model.eval()
-        with torch.no_grad() as tng:
-            ova_len = loader.dataset.n_data
-            ova_loss = 0
-            for i, data in enumerate(loader):
-                imgs, targets = data[0].to(self.device), data[1].to(self.device)
-                preds = self.model(imgs)
-                preds, targets = preds.cpu(), targets.cpu()
-                if self.pb_type == 'regression':
-                    preds, targets = preds.numpy(), targets.numpy()
-                    ova_loss += np.sum(np.abs(preds-targets))
-                elif self.pb_type == 'detection':
-                    preds = heatmap2coor(preds, self.n_kps, self.img_size).numpy()
-                    targets = heatmap2coor(targets, self.n_kps, self.img_size).numpy()
-                    ova_loss += np.sum(np.abs(preds-targets))
-                else:
-                    return None
-        return ova_loss/(ova_len*2*self.n_kps)
-
     def pred_live(self):
         cap = cv2.VideoCapture(0)
         print(int(cap.get(cv2.CAP_PROP_FRAME_COUNT)))
@@ -184,3 +157,23 @@ class SHPE_model():
                 break
         cap.release()
         cv2.destroyAllWindows()
+
+    def evaluate(self, loader):
+        self.model.eval()
+        with torch.no_grad() as tng:
+            ova_len = loader.dataset.n_data
+            ova_loss = 0
+            for i, data in enumerate(loader):
+                imgs, targets = data[0].to(self.device), data[1].to(self.device)
+                preds = self.model(imgs)
+                preds, targets = preds.cpu(), targets.cpu()
+                if self.pb_type == 'regression':
+                    preds, targets = preds.numpy(), targets.numpy()
+                    ova_loss += np.sum(np.abs(preds-targets))
+                elif self.pb_type == 'detection':
+                    preds = heatmap2coor(preds, self.n_kps, self.img_size).numpy()
+                    targets = heatmap2coor(targets, self.n_kps, self.img_size).numpy()
+                    ova_loss += np.sum(np.abs(preds-targets))
+                else:
+                    return None
+        return ova_loss/(ova_len*2*self.n_kps)
