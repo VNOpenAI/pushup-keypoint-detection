@@ -77,3 +77,30 @@ class MAE(nn.Module):
         else:
             return None
         return ova_loss
+
+class PCKS(nn.Module):
+    def __init__(self, pb_type='detection', n_kps=7, img_size=(225,225), id_shouder=(3,5), thresh=0.4):
+        super(PCKS, self).__init__()
+        self.n_kps =n_kps
+        self.pb_type = pb_type
+        self.img_size = img_size
+        self.sr = id_shouder[0]
+        self.sl = id_shouder[1]
+        self.thresh = 0.4
+    def forward(self, pred, target):
+        ova_len = len(pred)*n_kps
+        if self.pb_type == 'regression':
+            shouders_len = ((target[...,self.sr:self.sr+1]-target[...,self.sl:self.sl+1])**2 + (target[...,self.sr+self.n_kps:self.sr+self.n_kps+1]-target[...,self.sl+self.n_kps:self.sl+self.n_kps+1])**2)**0.5
+            err = torch.abs(pred-target)
+            err = (err[...,:self.n_kps]**2 + err[...,self.n_kps]**2)**0.5
+            err = torch.sum(err < shouders_len*self.thresh)
+        elif self.pb_type == 'detection':
+            pred = heatmap2coor(pred, self.n_kps, self.img_size)
+            target = heatmap2coor(target, self.n_kps, self.img_size)
+            shouders_len = ((target[:,self.sr:self.sr+1,0]-target[:,self.sl:self.sl+1,0])**2 + (target[:,self.sr:self.sr+1,1]-target[:,self.sl:self.sl+1,1])**2)**0.5
+            err = torch.abs(pred-target)
+            err = (err[...,0]**2 + err[...,1]**2)**0.5
+            err = torch.sum(err < shouders_len*self.thresh)
+        else:
+            return None
+        return err/ova_len
