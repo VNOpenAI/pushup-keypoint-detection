@@ -88,7 +88,7 @@ class PCKS(nn.Module):
         self.sl = id_shouder[1]
         self.thresh = 0.4
     def forward(self, pred, target):
-        ova_len = len(pred)*n_kps
+        ova_len = len(pred)*self.n_kps
         if self.pb_type == 'regression':
             shouders_len = ((target[...,self.sr:self.sr+1]-target[...,self.sl:self.sl+1])**2 + (target[...,self.sr+self.n_kps:self.sr+self.n_kps+1]-target[...,self.sl+self.n_kps:self.sl+self.n_kps+1])**2)**0.5
             err = torch.abs(pred-target)
