@@ -82,7 +82,7 @@ class SHPE_model():
                     for key in list(self.metrics.keys()):
                         writer.add_scalars(key, {mode: running_metrics[key]}, epoch)
                 for key in list(self.metrics.keys()):
-                    history[mode][key].append*running_metrics[key]
+                    history[mode][key].append(running_metrics[key])
                     s += "{}_{} {:.3f} - ".format(mode, key, running_metrics[key])
             end = time.time()
             s = s[:-2] + "({:.1f}s)".format(end-start)
