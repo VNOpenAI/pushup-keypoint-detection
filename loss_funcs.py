@@ -89,7 +89,7 @@ class PCKS(nn.Module):
         self.img_size = img_size
         self.sr = id_shouder[0]
         self.sl = id_shouder[1]
-        self.thresh = 0.4
+        self.thresh = thresh
         self.stride = stride
         if self.pb_type == 'detection' and self.stride is None:
             raise Exception("missing \'stride\' param on detection problem")
