@@ -108,7 +108,7 @@ class SHPE_model():
             if self.pb_type == 'regression':
                 preds = preds.numpy()
                 preds = np.stack([preds[:,::2], preds[:,1:][:,::2]], axis=-1)
-            elif self.pb_type == 'detection':
+            elif self.pb_type == 'detection' or self.pb_type=='define':
                 preds = heatmap2coor(preds, self.n_kps, self.img_size, self.stride).numpy()
         return preds
 
@@ -167,7 +167,7 @@ class SHPE_model():
                 preds = self.model(imgs)
                 iter_len = imgs.size()[0]
                 for key in list(self.metrics.keys()):
-                    running_metrics[key] += self.metrics[key](preds, labels).item()*iter_len/ova_len
+                    running_metrics[key] += self.metrics[key](preds, targets).item()*iter_len/ova_len
                 # preds, targets = preds.cpu(), targets.cpu()
                 # if self.pb_type == 'regression':
                 #     preds, targets = preds.numpy(), targets.numpy()
