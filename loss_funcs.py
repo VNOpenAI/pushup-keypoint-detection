@@ -62,24 +62,27 @@ class Detection_based_Loss(nn.Module):
         return self.hm_w*heatmap_loss + self.os_w*offset_loss
 
 class MAE(nn.Module):
-    def __init__(self, pb_type='detection', n_kps=7, img_size=(225, 225)):
+    def __init__(self, pb_type='detection', n_kps=7, img_size=(225, 225), stride=None):
         super(MAE, self).__init__()
         self.n_kps =n_kps
         self.pb_type = pb_type
         self.img_size = img_size
+        self.stride = stride
+        if self.pb_type == 'detection' and self.stride is None:
+            raise Exception("missing \'stride\' param on detection problem")
     def forward(self, pred, target):
         if self.pb_type == 'regression':
             ova_loss = torch.mean(torch.sum(torch.abs(pred-target), dim=-1)/(2*self.n_kps))
         elif self.pb_type == 'detection':
-            pred = heatmap2coor(pred, self.n_kps, self.img_size)
-            target = heatmap2coor(target, self.n_kps, self.img_size)
+            pred = heatmap2coor(pred, self.n_kps, self.img_size, self.stride)
+            target = heatmap2coor(target, self.n_kps, self.img_size, self.stride)
             ova_loss = torch.mean(torch.sum(torch.abs(pred-target), dim=(-1,-2))/(2*self.n_kps))
         else:
             return None
         return ova_loss
 
 class PCKS(nn.Module):
-    def __init__(self, pb_type='detection', n_kps=7, img_size=(225,225), id_shouder=(3,5), thresh=0.4):
+    def __init__(self, pb_type='detection', n_kps=7, img_size=(225,225), id_shouder=(3,5), thresh=0.4, stride=None):
         super(PCKS, self).__init__()
         self.n_kps =n_kps
         self.pb_type = pb_type
@@ -87,6 +90,9 @@ class PCKS(nn.Module):
         self.sr = id_shouder[0]
         self.sl = id_shouder[1]
         self.thresh = 0.4
+        self.stride = stride
+        if self.pb_type == 'detection' and self.stride is None:
+            raise Exception("missing \'stride\' param on detection problem")
     def forward(self, pred, target):
         ova_len = len(pred)*self.n_kps
         if self.pb_type == 'regression':
@@ -95,8 +101,8 @@ class PCKS(nn.Module):
             err = (err[...,:self.n_kps]**2 + err[...,self.n_kps]**2)**0.5
             err = torch.sum(err < shouders_len*self.thresh)
         elif self.pb_type == 'detection':
-            pred = heatmap2coor(pred, self.n_kps, self.img_size)
-            target = heatmap2coor(target, self.n_kps, self.img_size)
+            pred = heatmap2coor(pred, self.n_kps, self.img_size, self.stride)
+            target = heatmap2coor(target, self.n_kps, self.img_size, self.stride)
             shouders_len = ((target[:,self.sr:self.sr+1,0]-target[:,self.sl:self.sl+1,0])**2 + (target[:,self.sr:self.sr+1,1]-target[:,self.sl:self.sl+1,1])**2)**0.5
             err = torch.abs(pred-target)
             err = (err[...,0]**2 + err[...,1]**2)**0.5

@@ -121,7 +121,7 @@ def preprocessed_img_test(img, img_size):
 #     hp_preds = np.stack([xs_p, ys_p], axis=-1)
 #     return hp_preds
 
-def heatmap2coor(hp_preds, n_kps = 7, img_size=(225,225)):
+def heatmap2coor(hp_preds, n_kps = 7, img_size=(225,225), stride=15):
     heatmaps = hp_preds[:,:n_kps]
     flatten_hm = heatmaps.reshape((heatmaps.shape[0], n_kps, -1))
     flat_vectx = hp_preds[:,n_kps:2*n_kps].reshape((heatmaps.shape[0], n_kps, -1))
@@ -132,7 +132,7 @@ def heatmap2coor(hp_preds, n_kps = 7, img_size=(225,225)):
     cys = flat_max//(heatmaps.shape[-2])
     ovxs = torch.sum(flat_vectx*max_mask, dim=-1)
     ovys = torch.sum(flat_vectx*max_mask, dim=-1)
-    xs_p = (cxs*15+ovxs)/img_size[1]
-    ys_p = (cys*15+ovys)/img_size[0]
+    xs_p = (cxs*stride+ovxs)/img_size[1]
+    ys_p = (cys*stride+ovys)/img_size[0]
     hp_preds = torch.stack([xs_p, ys_p], dim=-1)
     return hp_preds
