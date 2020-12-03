@@ -33,8 +33,8 @@ class ResNeSt_head(nn.Module):
         super(ResNeSt_head, self).__init__()
         self.pre_model = pre_model
         self.pre_model.layer4 = nn.Identity()
-        self.avgpool = nn.Identity()
-        self.fc = nn.Identity()
+        self.pre_model.avgpool = nn.Identity()
+        self.pre_model.fc = nn.Identity()
         self.last_conv = nn.Conv2d(1024, 3*n_kps, (1,1), 1)
         self.output = nn.Sigmoid()
     def forward(self, x):

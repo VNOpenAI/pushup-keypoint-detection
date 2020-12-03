@@ -61,6 +61,28 @@ class Detection_based_Loss(nn.Module):
         offset_loss = 1/(2*self.n_kps*pred.shape[0])*F.mse_loss(coor_pred, coor_target, reduction='sum')
         return self.hm_w*heatmap_loss + self.os_w*offset_loss
 
+class MultiObject_Loss(nn.Module):
+    def __init__(self, n_kps=7, hm_w=4, os_w=1, cls_w):
+        super(Detection_based_Loss, self).__init__()
+        self.n_kps =n_kps
+        self.hm_w = hm_w
+        self.os_w = os_w
+        self.cls_w = cls_w
+    def forward(self, pred, target):
+        cls_pred, sub_pred = pred
+        cls_target, sub_target = target
+        cls_weights = torch.where(target == 1.0, 1.6, 0.4)
+        hm_pred = sub_pred[:,:self.n_kps]
+        hm_target = sub_target[:,:self.n_kps]
+        lmap = (hm_target == 1.0)*1.0
+        lmap = torch.cat([lmap, lmap], dim=1)
+        heatmap_loss = F.binary_cross_entropy(hm_pred, hm_target, reduction='mean')
+        coor_pred = sub_pred[:,self.n_kps:]*lmap
+        coor_target = sub_target[:,self.n_kps:]*lmap
+        offset_loss = 1/(2*self.n_kps*pred.shape[0])*F.mse_loss(coor_pred, coor_target, reduction='sum')
+        cls_loss = torch.mean(F.binary_cross_entropy(cls_pred, cls_target, reduction=None)*cls_weights)
+        return self.hm_w*heatmap_loss + self.os_w*offset_loss + self.cls_w*cls_loss
+
 class MAE(nn.Module):
     def __init__(self, pb_type='detection', n_kps=7, img_size=(225, 225), stride=None):
         super(MAE, self).__init__()
@@ -110,3 +132,19 @@ class PCKS(nn.Module):
         else:
             return None
         return err/ova_len
+
+class F1(nn.Module):
+    def __init__(self, thresh=0.5, eps=1e-5):
+        super(F1, self).__init__()
+        self.thresh=0.5
+        self.eps=1e-5
+    def forward(self, pred, target):
+        pred_thresh = (pred > 0.5)*1.0
+        tp = torch.sum((pred_thresh == target)*(target==1.0))
+        tn = torch.sum((pred_thresh == target)*(target==0.0))
+        fp = torch.sum((pred_thresh != target)*(target==0.0))
+        tn = torch.sum((pred_thresh != target)*(target==1.0))
+        recall = tp / (fn+tp+self.eps)
+        precision = tp / (fp+tp+self.eps)
+        f1_score = 2 * precission * recall / (precision + recall + self.eps)
+        return f1_score
