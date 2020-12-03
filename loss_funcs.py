@@ -62,7 +62,7 @@ class Detection_based_Loss(nn.Module):
         return self.hm_w*heatmap_loss + self.os_w*offset_loss
 
 class MultiObject_Loss(nn.Module):
-    def __init__(self, n_kps=7, hm_w=4, os_w=1, cls_w):
+    def __init__(self, n_kps=7, hm_w=4, os_w=1, cls_w=4):
         super(Detection_based_Loss, self).__init__()
         self.n_kps =n_kps
         self.hm_w = hm_w
