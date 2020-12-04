@@ -7,15 +7,15 @@ import numpy as np
 
 class SHPE_model():
     def __init__(self, loss_func, optimizer, pb_type='detection', model_name='resnest', n_kps=7, lr=3e-4,
-                metrics=None, define_model=None, define_img_size=None, stride=None):
+                metrics=None, define_model=None, define_img_size=None, stride=None, pretrained=True):
         self.pb_type = pb_type
         self.model_name = model_name
         self.n_kps = n_kps
         if pb_type == 'detection':
-            self.model = build_detection_based_model(model_name, n_kps)
+            self.model = build_detection_based_model(model_name, n_kps, pretrained=pretrained)
             self.img_size = (225,225)
         elif pb_type == 'regression':
-            self.model = build_regression_based_model(model_name, n_kps)
+            self.model = build_regression_based_model(model_name, n_kps, pretrained=pretrained)
             self.img_size = (224,224)
         elif pb_type == 'define':
             if define_model is None:

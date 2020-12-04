@@ -49,7 +49,7 @@ class ResNeSt_head(nn.Module):
         x = self.output(x)
         return x
 
-def build_detection_based_model(model_name, n_kps=7):
+def build_detection_based_model(model_name, n_kps=7, pretrained=True):
   if model_name == 'efficient':
     pre_model = EfficientNet.from_pretrained('efficientnet-b2')
     for param in pre_model.parameters():
@@ -57,7 +57,7 @@ def build_detection_based_model(model_name, n_kps=7):
     model = Efficient_head(pre_model, n_kps)
     return model
   elif model_name == 'resnest':
-    pre_model = resnest50(pretrained=False)
+    pre_model = resnest50(pretrained=pretrained)
     for param in pre_model.parameters():
         param.requires_grad = True
     model = ResNeSt_head(pre_model, n_kps)
@@ -65,7 +65,7 @@ def build_detection_based_model(model_name, n_kps=7):
   else:
     print('Not support this model!')
 
-def build_regression_based_model(model_name, n_kps=7):
+def build_regression_based_model(model_name, n_kps=7, pretrained=True):
     if model_name == 'efficient':
         model = EfficientNet.from_pretrained('efficientnet-b2')
         for param in model.parameters():
@@ -74,7 +74,7 @@ def build_regression_based_model(model_name, n_kps=7):
         model._fc = nn.Sequential(nn.Linear(in_feature, 2*n_kps, bias=True), nn.Sigmoid())
         return model 
     elif model_name == 'resnest':
-        model = resnest50(pretrained=False)
+        model = resnest50(pretrained=pretrained)
         for param in model.parameters():
             param.requires_grad = True
         in_feature = model.fc.in_features
