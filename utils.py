@@ -105,22 +105,6 @@ def preprocessed_img_test(img, img_size):
     new_img = torch.unsqueeze(new_img, 0)
     return new_img, max([oh, ow]), clx, cly
 
-# def heatmap2coor(hp_preds, n_kps = 7, img_size=(225,225)):
-#     heatmaps = hp_preds[:,:n_kps]
-#     flatten_hm = heatmaps.reshape((heatmaps.shape[0], n_kps, -1))
-#     flat_vectx = hp_preds[:,n_kps:2*n_kps].reshape((heatmaps.shape[0], n_kps, -1))
-#     flat_vecty = hp_preds[:,2*n_kps:].reshape((heatmaps.shape[0], n_kps, -1))
-#     flat_max = np.argmax(flatten_hm, axis=-1)
-#     max_mask = flatten_hm == np.expand_dims(np.max(flatten_hm, axis=-1), axis=-1)
-#     cxs = flat_max%(heatmaps.shape[-2])
-#     cys = flat_max//(heatmaps.shape[-2])
-#     ovxs = np.sum(flat_vectx*max_mask, axis=-1)
-#     ovys = np.sum(flat_vectx*max_mask, axis=-1)
-#     xs_p = (cxs*15+ovxs)/img_size[1]
-#     ys_p = (cys*15+ovys)/img_size[0]
-#     hp_preds = np.stack([xs_p, ys_p], axis=-1)
-#     return hp_preds
-
 def heatmap2coor(hp_preds, n_kps = 7, img_size=(225,225), stride=15):
     heatmaps = hp_preds[:,:n_kps]
     flatten_hm = heatmaps.reshape((heatmaps.shape[0], n_kps, -1))
@@ -130,8 +114,8 @@ def heatmap2coor(hp_preds, n_kps = 7, img_size=(225,225), stride=15):
     max_mask = flatten_hm == torch.unsqueeze(torch.max(flatten_hm, dim=-1)[0], dim=-1)
     cxs = flat_max%(heatmaps.shape[-2])
     cys = flat_max//(heatmaps.shape[-2])
-    ovxs = torch.sum(flat_vectx*max_mask, dim=-1)*stride/img_size[1]
-    ovys = torch.sum(flat_vectx*max_mask, dim=-1)*stride/img_size[0]
+    ovxs = torch.sum(flat_vectx*max_mask, dim=-1)
+    ovys = torch.sum(flat_vectx*max_mask, dim=-1)
     xs_p = (cxs*stride+ovxs)/img_size[1]
     ys_p = (cys*stride+ovys)/img_size[0]
     hp_preds = torch.stack([xs_p, ys_p], dim=-1)
