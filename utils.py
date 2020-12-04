@@ -29,13 +29,13 @@ class Efficient_head(nn.Module):
         return x
 
 class ResNeSt_head(nn.Module):
-    def __init__(self, pre_model, n_kps=7):
+    def __init__(self, pre_model):
         super(ResNeSt_head, self).__init__()
         self.pre_model = pre_model
-        self.pre_model.layer4 = nn.Identity()
-        self.pre_model.avgpool = nn.Identity()
         self.pre_model.fc = nn.Identity()
-        self.last_conv = nn.Conv2d(1024, 3*n_kps, (1,1), 1)
+        self.pre_model.avgpool = nn.Identity()
+        self.pre_model.layer4 = nn.Identity()
+        self.last_conv = nn.Conv2d(1024, 21, (1,1), 1)
         self.output = nn.Sigmoid()
     def forward(self, x):
         x = self.pre_model.conv1(x)
