@@ -114,8 +114,8 @@ def heatmap2coor(hp_preds, n_kps = 7, img_size=(225,225), stride=15):
     max_mask = flatten_hm == torch.unsqueeze(torch.max(flatten_hm, dim=-1)[0], dim=-1)
     cxs = flat_max%(heatmaps.shape[-2])
     cys = flat_max//(heatmaps.shape[-2])
-    ovxs = torch.sum(flat_vectx*max_mask, dim=-1)
-    ovys = torch.sum(flat_vecty*max_mask, dim=-1)
+    ovxs = torch.sum(flat_vectx*max_mask, dim=-1)*stride
+    ovys = torch.sum(flat_vecty*max_mask, dim=-1)*stride
     xs_p = (cxs*stride+ovxs)/img_size[1]
     ys_p = (cys*stride+ovys)/img_size[0]
     hp_preds = torch.stack([xs_p, ys_p], dim=-1)
