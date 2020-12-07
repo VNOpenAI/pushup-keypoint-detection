@@ -15,7 +15,7 @@ def heatmap2coor_numpy(hp_preds, n_kps = 7, img_size=(225,225)):
     hp_preds = np.stack([xs_p, ys_p], axis=-1)
     return hp_preds
 
-def pcks_score(pred, target, pb_type='regression', n_kps=7, img_size=(225,225), id_shouder=(3,5), thresh=0.4, stride=None):
+def pcks_score(pred, target, pb_type='regression', n_kps=7, img_size=(225,225), id_shouder=(2,4), thresh=0.4, stride=None):
     if pb_type == 'detection' and stride is None:
         raise Exception("missing \'stride\' param on detection problem")
     sr = id_shouder[0]

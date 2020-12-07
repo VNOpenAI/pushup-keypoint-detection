@@ -104,7 +104,7 @@ class MAE(nn.Module):
         return ova_loss
 
 class PCKS(nn.Module):
-    def __init__(self, pb_type='detection', n_kps=7, img_size=(225,225), id_shouder=(3,5), thresh=0.4, stride=None):
+    def __init__(self, pb_type='detection', n_kps=7, img_size=(225,225), id_shouder=(2,4), thresh=0.4, stride=None):
         super(PCKS, self).__init__()
         self.n_kps =n_kps
         self.pb_type = pb_type
@@ -115,7 +115,7 @@ class PCKS(nn.Module):
         self.stride = stride
         if self.pb_type == 'detection' and self.stride is None:
             raise Exception("missing \'stride\' param on detection problem")
-    def forward(self, pred, target):
+    def forward(self, pred, target)s:
         ova_len = len(pred)*self.n_kps
         if self.pb_type == 'regression':
             shouders_len = ((target[...,self.sr:self.sr+1]-target[...,self.sl:self.sl+1])**2 + (target[...,self.sr+self.n_kps:self.sr+self.n_kps+1]-target[...,self.sl+self.n_kps:self.sl+self.n_kps+1])**2)**0.5

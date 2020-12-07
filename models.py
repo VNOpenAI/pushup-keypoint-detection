@@ -119,17 +119,19 @@ class SHPE_model():
         preds = (preds[0]*dmax).astype(np.int32) - np.array([clx, cly])
         return preds
     
-    def pred_video(self, video_path, output_path):
+    def pred_video(self, video_path, output_path, is_rotate=False):
         cap = cv2.VideoCapture(video_path)
         print(int(cap.get(cv2.CAP_PROP_FRAME_COUNT)))
         frame_width, frame_height = int(cap.get(3)), int(cap.get(4))
         out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc('M','J','P','G'), 50, (frame_width, frame_height))
         while(cap.isOpened()):
             ret, frame = cap.read()
+            if is_rotate:
+                frame = cv2.rotate(frame, cv2.cv2.ROTATE_90_COUNTERCLOCKWISE)
             if ret == True:
                 preds = self.predict_raw(frame)
                 cv2.polylines(frame, [preds], True, (0,0,255), 2)
-                out.write(frame)
+                out.write(cv2.resize(frame, (frame_width, frame_height)))
             else:
                 break
         cap.release()
