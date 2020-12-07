@@ -115,7 +115,7 @@ class PCKS(nn.Module):
         self.stride = stride
         if self.pb_type == 'detection' and self.stride is None:
             raise Exception("missing \'stride\' param on detection problem")
-    def forward(self, pred, target)s:
+    def forward(self, pred, target):
         ova_len = len(pred)*self.n_kps
         if self.pb_type == 'regression':
             shouders_len = ((target[...,self.sr:self.sr+1]-target[...,self.sl:self.sl+1])**2 + (target[...,self.sr+self.n_kps:self.sr+self.n_kps+1]-target[...,self.sl+self.n_kps:self.sl+self.n_kps+1])**2)**0.5
