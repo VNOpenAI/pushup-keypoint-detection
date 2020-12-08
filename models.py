@@ -137,7 +137,7 @@ class SHPE_model():
         cap.release()
         out.release()
 
-    def pred_live(self):
+    def pred_live(self, mode='polyline', closed = True):
         cap = cv2.VideoCapture(0)
         print(int(cap.get(cv2.CAP_PROP_FRAME_COUNT)))
         frame_width, frame_height = int(cap.get(3)), int(cap.get(4))
@@ -146,7 +146,13 @@ class SHPE_model():
             if ret == True:
                 st = time.time()
                 preds = self.predict_raw(frame)
-                cv2.polylines(frame, [preds], True, (0,0,255), 2)
+                if mode == 'polyline':
+                    cv2.polylines(frame, [preds], closed, (0,0,255), 2)
+                elif mode == 'circle':
+                    for i, pred in enumerate(preds):
+                        x, y = pred[0], pred[1]
+                        frame = cv2.circle(frame, center=(int(x), int(y)),color=(255,0,0), radius=5, thickness=-1)
+                        frame = cv2.putText(frame, str(i), (int(x), int(y)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1, cv2.LINE_AA)
                 en = time.time()
                 print(en-st)
                 cv2.imshow('frame',frame)
