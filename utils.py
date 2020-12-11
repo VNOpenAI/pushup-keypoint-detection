@@ -1,68 +1,194 @@
 import torch
 import torch.nn as nn
 from torchvision.models import densenet169, resnet50
+from torchvision.models import shufflenet_v2_x1_0, mobilenet_v2, shufflenet_v2_x1_5
 import torchvision.transforms as transforms
 from efficientnet_pytorch import EfficientNet
 from resnest.torch import resnest50
 import numpy as np
 
-class Efficient_head(nn.Module):
+class depthwise_separable_conv(nn.Module):
+    def __init__(self, nin, nout, kernels_per_layer=1):
+        super(depthwise_separable_conv, self).__init__()
+        self.depthwise = nn.Conv2d(nin, nin * kernels_per_layer, kernel_size=3, padding=1, groups=nin)
+        self.pointwise = nn.Conv2d(nin * kernels_per_layer, nout, kernel_size=1)
+
+    def forward(self, x):
+        out = self.depthwise(x)
+        out = self.pointwise(out)
+        return out
+
+class conv_block(nn.Module):
+  def __init__(self, in_c, out_c, filters=3, strides=1, padding=1, norm='mvn', reps=2, use_depthwise=True):
+    super(conv_block, self).__init__()
+    self.in_c = in_c
+    self.out_c = out_c
+    self.convs = nn.ModuleList()
+    in_conv = self.in_c
+    for i in range(reps):
+      if use_depthwise:
+        self.convs.append(depthwise_separable_conv(in_conv, self.out_c))
+      else:
+        self.convs.append(nn.Conv2d(in_conv, self.out_c, filters, strides, padding=padding))
+      if norm == 'mvn':
+        self.convs.append(MVN())
+      elif norm == 'bn':
+        self.convs.append(nn.BatchNorm2d(self.out_c))
+      elif norm == 'mvn+bn':
+        self.convs.append(MVN())
+        self.convs.append(nn.BatchNorm2d(self.out_c))
+      self.convs.append(nn.ReLU(inplace=True))
+      in_conv = self.out_c
+  def forward(self, x):
+    for layer in self.convs:
+      x = layer(x)
+    return x
+
+class Efficient_encode(nn.Module):
     def __init__(self, pre_model, n_kps=7):
-        super(Efficient_head, self).__init__()
-        self.pre_model = pre_model
+        super(Efficient_encode, self).__init__()
+        # self.pre_model = pre_model
+        self._conv_stem = pre_model._conv_stem
+        self._bn0 = pre_model._bn0
+        self._blocks = pre_model._blocks[:16]
         self.last_conv = nn.Conv2d(120, 3*n_kps, (1,1), 1)
         self.output = nn.Sigmoid()
-        for block in self.pre_model._blocks[16:]:
-            block = nn.Identity()
-        self.pre_model._conv_head = nn.Identity()
-        self.pre_model._bn1 = nn.Identity()
-        self.pre_model._avg_pooling = nn.Identity()
-        self.pre_model._dropout = nn.Identity()
-        self.pre_model._fc = nn.Identity()
+        # for block in self.pre_model._blocks[16:]:
+        #     block = nn.Identity()
+        # self.pre_model._conv_head = nn.Identity()
+        # self.pre_model._bn1 = nn.Identity()
+        # self.pre_model._avg_pooling = nn.Identity()
+        # self.pre_model._dropout = nn.Identity()
+        # self.pre_model._fc = nn.Identity()
     def forward(self, x):
-        x = self.pre_model._conv_stem(x)
-        x = self.pre_model._bn0(x)
-        for block in self.pre_model._blocks[:16]:
-          x = block(x)
+        x = self._conv_stem(x)
+        x = self._bn0(x)
+        x = self._blocks(x)
         x = self.last_conv(x)
         x = self.output(x)
         return x
 
-class ResNeSt_head(nn.Module):
-    def __init__(self, pre_model, n_kps):
-        super(ResNeSt_head, self).__init__()
-        self.pre_model = pre_model
-        self.pre_model.fc = nn.Identity()
-        self.pre_model.avgpool = nn.Identity()
-        self.pre_model.layer4 = nn.Identity()
+class ResNeSt_encode(nn.Module):
+    def __init__(self, pre_model, n_kps=7):
+        super(ResNeSt_encode, self).__init__()
+        # self.pre_model = pre_model
+        self.conv1 = pre_model.conv1
+        self.bn1 = pre_model.bn1
+        self.relu = pre_model.relu
+        self.maxpool = pre_model.maxpool
+        self.layer1 = pre_model.layer1
+        self.layer2 = pre_model.layer2
+        self.layer3 = pre_model.layer3
+        # self.pre_model.fc = nn.Identity()
+        # self.pre_model.avgpool = nn.Identity()
+        # self.pre_model.layer4 = nn.Identity()
         self.last_conv = nn.Conv2d(1024, 3*n_kps, (1,1), 1)
         self.output = nn.Sigmoid()
     def forward(self, x):
-        x = self.pre_model.conv1(x)
-        x = self.pre_model.bn1(x)
-        x = self.pre_model.relu(x)
-        x = self.pre_model.maxpool(x)
-        x = self.pre_model.layer1(x)
-        x = self.pre_model.layer2(x)
-        x = self.pre_model.layer3(x)
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.last_conv(x)
+        x = self.output(x)
+        return x
+
+class ShuffleNet_head(nn.Module):
+    def __init__(self, pre_model, use_depthwise = False):
+        super(ShuffleNet_head, self).__init__()
+        self.conv1 = pre_model.conv1
+        self.maxpool = pre_model.maxpool
+        self.stage2 = pre_model.stage2
+        self.stage3 = pre_model.stage3
+        self.stage4 = pre_model.stage4
+        self.conv5 = pre_model.conv5
+        self.last_conv = nn.Conv2d(116, 21, (1,1), 1)
+        self.upsampling = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+        self.decode =  nn.Sequential(
+                                     conv_block(696, 232, norm='bn', filters=3, reps=2, use_depthwise = use_depthwise),
+                                     conv_block(348, 116, norm='bn', filters=3, reps=2, use_depthwise = use_depthwise)
+                                     )
+        self.output = nn.Sigmoid()
+    def forward(self, x):
+        e1 = self.conv1(x)
+        e2 = self.maxpool(e1)
+        e3 = self.stage2(e2)
+        e4 = self.stage3(e3)
+        e5 = self.stage4(e4)
+        # x = self.conv5(x)
+        x = self.upsampling(e5)
+        conc1 = torch.cat([x, e4], dim = 1)
+        # print(conc1.shape)
+        x = self.decode[0](conc1)
+        x = self.upsampling(x)
+        conc2 = torch.cat([x, e3], dim=1)
+        x = self.decode[1](conc2)
+        # # x = self.pre_model.layer4(x)
+        x = self.last_conv(x)
+        x = self.output(x)
+        return x
+
+class MobileNet_head(nn.Module):
+    def __init__(self, pre_model, use_depthwise = False):
+        super(MobileNet_head, self).__init__()
+        self.eblock_1 = pre_model.features[:2]
+        self.eblock_2 = pre_model.features[2:4]
+        self.eblock_3 = pre_model.features[4:7]
+        self.eblock_4 = pre_model.features[7:14]
+        self.eblock_5 = pre_model.features[14:-1]
+        self.last_conv = nn.Conv2d(64, 21, (1,1), 1)
+        self.upsampling = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+        self.decode =  nn.Sequential(
+                                     conv_block(416, 128, norm='bn', filters=3, reps=2, use_depthwise = use_depthwise),
+                                     conv_block(160, 64, norm='bn', filters=3, reps=2, use_depthwise = use_depthwise)
+                                     )
+        self.output = nn.Sigmoid()
+    def forward(self, x):
+        e1 = self.eblock_1(x)
+        e2 = self.eblock_2(e1)
+        e3 = self.eblock_3(e2)
+        e4 = self.eblock_4(e3)
+        e5 = self.eblock_5(e4)
+        x = self.upsampling(e5)
+        conc1 = torch.cat([x, e4], dim = 1)
+        x = self.decode[0](conc1)
+        x = self.upsampling(x)
+        conc2 = torch.cat([x, e3], dim=1)
+        x = self.decode[1](conc2)
+        # # x = self.pre_model.layer4(x)
         x = self.last_conv(x)
         x = self.output(x)
         return x
 
 def build_detection_based_model(model_name, n_kps=7, pretrained=True):
-  if model_name == 'efficient':
-    pre_model = EfficientNet.from_pretrained('efficientnet-b2')
-    for param in pre_model.parameters():
-        param.requires_grad = True
-    model = Efficient_head(pre_model, n_kps)
-    return model
-  elif model_name == 'resnest':
-    pre_model = resnest50(pretrained=pretrained)
-    for param in pre_model.parameters():
-        param.requires_grad = True
-    model = ResNeSt_head(pre_model, n_kps)
-    return model
-  else:
+    if model_name == 'efficient':
+        pre_model = EfficientNet.from_pretrained('efficientnet-b2')
+        for param in pre_model.parameters():
+            param.requires_grad = True
+        model = Efficient_head(pre_model, n_kps)
+        return model
+    elif model_name == 'resnest':
+        pre_model = resnest50(pretrained=pretrained)
+        for param in pre_model.parameters():
+            param.requires_grad = True
+        model = ResNeSt_head(pre_model, n_kps)
+        return model
+    elif model_name == 'mobile':
+        pre_model = mobilenet_v2(pretrained=False)
+        for param in pre_model.parameters():
+            param.requires_grad = True
+        model = MobileNet_head(pre_model, use_depthwise = use_depthwise)
+        return model
+    elif model_name == 'shuffle':
+        pre_model = shufflenet_v2_x1_0(pretrained=False)
+        for param in pre_model.parameters():
+            param.requires_grad = True
+        model = ShuffleNet_head(pre_model, use_depthwise = use_depthwise)
+        return model
+    else:
     print('Not support this model!')
 
 def build_regression_based_model(model_name, n_kps=7, pretrained=True):

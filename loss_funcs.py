@@ -143,7 +143,7 @@ class F1(nn.Module):
         tp = torch.sum((pred_thresh == target)*(target==1.0))
         tn = torch.sum((pred_thresh == target)*(target==0.0))
         fp = torch.sum((pred_thresh != target)*(target==0.0))
-        tn = torch.sum((pred_thresh != target)*(target==1.0))
+        fn = torch.sum((pred_thresh != target)*(target==1.0))
         recall = tp / (fn+tp+self.eps)
         precision = tp / (fp+tp+self.eps)
         f1_score = 2 * precission * recall / (precision + recall + self.eps)

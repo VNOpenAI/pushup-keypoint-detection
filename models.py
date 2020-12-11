@@ -7,9 +7,11 @@ import numpy as np
 
 class SHPE_model():
     def __init__(self, loss_func, optimizer, pb_type='detection', model_name='resnest', n_kps=7, lr=3e-4,
-                metrics=None, define_model=None, define_img_size=None, stride=None, pretrained=True):
+                metrics=None, define_model=None, define_img_size=None, stride=None, pretrained=True, use_swa=True, start_swa=9):
         self.pb_type = pb_type
         self.model_name = model_name
+        self.use_swa = use_swa
+        self.start_swa = start_swa
         self.n_kps = n_kps
         if pb_type == 'detection':
             self.model = build_detection_based_model(model_name, n_kps, pretrained=pretrained)
@@ -45,6 +47,7 @@ class SHPE_model():
             lr_sch = torch.optim.lr_scheduler.StepLR(self.optimizer, int(epochs*2/3), self.lr/3)
         else:
             lr_sch = None
+        
         best_loss = 80.0
         if os.path.exists(ckp_dir):
             shutil.rmtree(ckp_dir)
@@ -87,6 +90,17 @@ class SHPE_model():
             end = time.time()
             s = s[:-2] + "({:.1f}s)".format(end-start)
             print(s)
+            if self.use_swa:
+                if (epoch+1) > start_swa:
+                    if (epoch-start_swa)%(step_down_2+step_down+2) <=step_down:
+                        lr_sch_1.step(), print("current lr: {:.4f}".format(lr_sch_1.get_lr()[0]))
+                    else:
+                        lr_sch_2.step(), print("current lr: {:.4f}".format(lr_sch_2.get_lr()[0]))
+                    if (epoch-start_swa)%(step_down+step_down_2+2) == 0 and epoch > start_swa:
+                        optimizer.update_swa()
+                        print('update swa!')
+                else:
+                    lr_sch_0.step(), print("current lr: {:.4f}".format(lr_sch_0.get_lr()[0]))
             if running_metrics['loss'] < best_loss or (epoch+1)%10==0:
                 best_loss = running_metrics['loss']
                 torch.save(self.model.state_dict(), os.path.join(ckp_dir,'epoch'+str(epoch+1)+'.pt'))
