@@ -270,7 +270,13 @@ def build_model(model_name, use_depthwise=False, pretrained=False):
     pre_model = resnest50(pretrained=pretrained)
     for param in pre_model.parameters():
         param.requires_grad = True
-    model = ResNeSt_head(pre_model)
+    model = ResNeSt_head(pre_model, use_depthwise = use_depthwise)
+    return model
+  elif model_name == 'resnest2':
+    pre_model = resnest50(pretrained=pretrained)
+    for param in pre_model.parameters():
+        param.requires_grad = True
+    model = ResNeSt2_head(pre_model, use_depthwise = use_depthwise)
     return model
   elif model_name == 'mobile':
     pre_model = mobilenet_v2(pretrained=pretrained)
