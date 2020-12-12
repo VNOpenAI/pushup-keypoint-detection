@@ -200,7 +200,7 @@ def build_detection_based_model(model_name, n_kps=7, pretrained=True, n_deconvs=
         model = ShuffleNet_deconv(pre_model, n_deconvs=n_deconvs, use_depthwise = use_depthwise)
         return model
     else:
-    print('Not support this model!')
+        print('Not support this model!')
 
 def build_regression_based_model(model_name, n_kps=7, pretrained=True):
     if model_name == 'efficient':
