@@ -218,7 +218,7 @@ class MobileNet2_head(nn.Module):
         x = self.output(x)
         return x
 
-def build_model(model_name, use_depthwise=False):
+def build_model(model_name, use_depthwise=False, pretrained=False):
   if model_name == 'efficient':
     pre_model = EfficientNet.from_pretrained('efficientnet-b2')
     for param in pre_model.parameters():
@@ -226,31 +226,31 @@ def build_model(model_name, use_depthwise=False):
     model = Efficient_head(pre_model)
     return model
   elif model_name == 'resnest':
-    pre_model = resnest50(pretrained=False)
+    pre_model = resnest50(pretrained=pretrained)
     for param in pre_model.parameters():
         param.requires_grad = True
     model = ResNeSt_head(pre_model)
     return model
   elif model_name == 'mobile':
-    pre_model = mobilenet_v2(pretrained=False)
+    pre_model = mobilenet_v2(pretrained=pretrained)
     for param in pre_model.parameters():
         param.requires_grad = True
     model = MobileNet_head(pre_model, use_depthwise = use_depthwise)
     return model
   elif model_name == 'mobile2':
-    pre_model = mobilenet_v2(pretrained=False)
+    pre_model = mobilenet_v2(pretrained=pretrained)
     for param in pre_model.parameters():
         param.requires_grad = True
     model = MobileNet2_head(pre_model, use_depthwise = use_depthwise)
     return model
   elif model_name == 'shuffle':
-    pre_model = shufflenet_v2_x1_0(pretrained=False)
+    pre_model = shufflenet_v2_x1_0(pretrained=pretrained)
     for param in pre_model.parameters():
         param.requires_grad = True
     model = ShuffleNet_head(pre_model, use_depthwise = use_depthwise)
     return model
   elif model_name == 'shuffle2':
-    pre_model = shufflenet_v2_x1_0(pretrained=False)
+    pre_model = shufflenet_v2_x1_0(pretrained=pretrained)
     for param in pre_model.parameters():
         param.requires_grad = True
     model = ShuffleNet2_head(pre_model, use_depthwise = use_depthwise)
