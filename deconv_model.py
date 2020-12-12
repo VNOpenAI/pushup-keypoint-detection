@@ -43,11 +43,13 @@ class conv_block(nn.Module):
 class ResNeSt_head(nn.Module):
     def __init__(self, pre_model, use_depthwise = False):
         super(ResNeSt_head, self).__init__()
-        self.pre_model = pre_model
-        # self.pre_model.layer3 = nn.Identity()
-        self.pre_model.layer4 = nn.Identity()
-        self.pre_model.avgpool = nn.Identity()
-        self.pre_model.fc = nn.Identity()
+        self.conv1 = pre_model.conv1
+        self.bn1 = pre_model.bn1
+        self.relu = pre_model.relu
+        self.maxpool = pre_model.maxpool
+        self.layer1 = pre_model.layer1
+        self.layer2 = pre_model.layer2
+        self.layer3 = pre_model.layer3
         self.last_conv = nn.Conv2d(512, 21, (1,1), 1)
         self.upsampling = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
         self.decode =  nn.Sequential(
@@ -57,13 +59,13 @@ class ResNeSt_head(nn.Module):
                                      )
         self.output = nn.Sigmoid()
     def forward(self, x):
-        x = self.pre_model.conv1(x)
-        x = self.pre_model.bn1(x)
-        x = self.pre_model.relu(x)
-        x = self.pre_model.maxpool(x)
-        x = self.pre_model.layer1(x)
-        x = self.pre_model.layer2(x)
-        aa = self.pre_model.layer3(x)
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+        x = self.layer1(x)
+        x = self.layer2(x)
+        aa = self.layer3(x)
         up1 = self.upsampling(aa)
         conc1 = torch.cat([up1, x], dim = 1)
         # print(conc1.shape)
@@ -76,11 +78,13 @@ class ResNeSt_head(nn.Module):
 class ResNeSt2_head(nn.Module):
     def __init__(self, pre_model, use_depthwise = False):
         super(ResNeSt2_head, self).__init__()
-        self.pre_model = pre_model
-        # self.pre_model.layer3 = nn.Identity()
-        self.pre_model.layer4 = nn.Identity()
-        self.pre_model.avgpool = nn.Identity()
-        self.pre_model.fc = nn.Identity()
+        self.conv1 = pre_model.conv1
+        self.bn1 = pre_model.bn1
+        self.relu = pre_model.relu
+        self.maxpool = pre_model.maxpool
+        self.layer1 = pre_model.layer1
+        self.layer2 = pre_model.layer2
+        self.layer3 = pre_model.layer3
         self.last_conv = nn.Conv2d(256, 21, (1,1), 1)
         self.upsampling = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
         self.decode =  nn.Sequential(
@@ -90,13 +94,13 @@ class ResNeSt2_head(nn.Module):
                                      )
         self.output = nn.Sigmoid()
     def forward(self, x):
-        x = self.pre_model.conv1(x)
-        x = self.pre_model.bn1(x)
-        x = self.pre_model.relu(x)
-        x = self.pre_model.maxpool(x)
-        e1 = self.pre_model.layer1(x)
-        e2= self.pre_model.layer2(x)
-        e3 = self.pre_model.layer3(x)
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+        e1 = self.layer1(x)
+        e2= self.layer2(x)
+        e3 = self.layer3(x)
         up1 = self.upsampling(e3)
         conc1 = torch.cat([up1, e2], dim = 1)
         # print(conc1.shape)
