@@ -90,17 +90,6 @@ class SHPE_model():
             end = time.time()
             s = s[:-2] + "({:.1f}s)".format(end-start)
             print(s)
-            if self.use_swa:
-                if (epoch+1) > start_swa:
-                    if (epoch-start_swa)%(step_down_2+step_down+2) <=step_down:
-                        lr_sch_1.step(), print("current lr: {:.4f}".format(lr_sch_1.get_lr()[0]))
-                    else:
-                        lr_sch_2.step(), print("current lr: {:.4f}".format(lr_sch_2.get_lr()[0]))
-                    if (epoch-start_swa)%(step_down+step_down_2+2) == 0 and epoch > start_swa:
-                        optimizer.update_swa()
-                        print('update swa!')
-                else:
-                    lr_sch_0.step(), print("current lr: {:.4f}".format(lr_sch_0.get_lr()[0]))
             if running_metrics['loss'] < best_loss or (epoch+1)%10==0:
                 best_loss = running_metrics['loss']
                 torch.save(self.model.state_dict(), os.path.join(ckp_dir,'epoch'+str(epoch+1)+'.pt'))
