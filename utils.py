@@ -96,97 +96,108 @@ class ResNeSt_encode(nn.Module):
         x = self.output(x)
         return x
 
-class ShuffleNet_head(nn.Module):
-    def __init__(self, pre_model, use_depthwise = False):
-        super(ShuffleNet_head, self).__init__()
+class ShuffleNet_deconv(nn.Module):
+    def __init__(self, pre_model, n_deconvs=2, use_depthwise = False):
+        super(ShuffleNet_deconv, self).__init__()
         self.conv1 = pre_model.conv1
         self.maxpool = pre_model.maxpool
         self.stage2 = pre_model.stage2
         self.stage3 = pre_model.stage3
         self.stage4 = pre_model.stage4
-        self.conv5 = pre_model.conv5
-        self.last_conv = nn.Conv2d(116, 21, (1,1), 1)
         self.upsampling = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
-        self.decode =  nn.Sequential(
-                                     conv_block(696, 232, norm='bn', filters=3, reps=2, use_depthwise = use_depthwise),
-                                     conv_block(348, 116, norm='bn', filters=3, reps=2, use_depthwise = use_depthwise)
-                                     )
+        if n_deconvs == 2:
+            self.decode =  nn.Sequential(
+                                        conv_block(696, 232, norm='bn', filters=3, reps=2, use_depthwise = use_depthwise),
+                                        conv_block(348, 116, norm='bn', filters=3, reps=2, use_depthwise = use_depthwise)
+                                        )
+        elif n_deconvs == 3:
+            self.decode =  nn.Sequential(
+                                        conv_block(696, 232, norm='bn', filters=3, reps=2, use_depthwise = use_depthwise),
+                                        conv_block(348, 116, norm='bn', filters=3, reps=2, use_depthwise = use_depthwise),
+                                        conv_block(140, 70, norm='bn', filters=3, reps=2, use_depthwise = use_depthwise),
+                                        )
+        else:
+            raise Exception("Not support this number of deconv blocks!!!!")
+        self.last_conv = nn.Conv2d(self.decode[-1].out_channels, 21, (1,1), 1)
         self.output = nn.Sigmoid()
     def forward(self, x):
-        e1 = self.conv1(x)
-        e2 = self.maxpool(e1)
-        e3 = self.stage2(e2)
-        e4 = self.stage3(e3)
-        e5 = self.stage4(e4)
-        # x = self.conv5(x)
-        x = self.upsampling(e5)
-        conc1 = torch.cat([x, e4], dim = 1)
-        # print(conc1.shape)
-        x = self.decode[0](conc1)
-        x = self.upsampling(x)
-        conc2 = torch.cat([x, e3], dim=1)
-        x = self.decode[1](conc2)
-        # # x = self.pre_model.layer4(x)
+        e = [x]
+        e.append(self.conv1(x))
+        e.append(self.maxpool(e[-1]))
+        e.append(self.stage2(e[-1]))
+        e.append(self.stage3(e[-1]))
+        e.append(self.stage4(e[-1]))
+        for i, block in enumerate(self.decode):
+            x = self.upsampling(e[-i-1])
+            conc = torch.cat([x, e[-i-2]], dim = 1)
+            x = block(conc)
         x = self.last_conv(x)
         x = self.output(x)
         return x
 
-class MobileNet_head(nn.Module):
-    def __init__(self, pre_model, use_depthwise = False):
-        super(MobileNet_head, self).__init__()
+class MobileNet_deconv(nn.Module):
+    def __init__(self, pre_model, n_deconvs=2, use_depthwise = False):
+        super(MobileNet_deconv, self).__init__()
         self.eblock_1 = pre_model.features[:2]
         self.eblock_2 = pre_model.features[2:4]
         self.eblock_3 = pre_model.features[4:7]
         self.eblock_4 = pre_model.features[7:14]
         self.eblock_5 = pre_model.features[14:-1]
-        self.last_conv = nn.Conv2d(64, 21, (1,1), 1)
         self.upsampling = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
-        self.decode =  nn.Sequential(
-                                     conv_block(416, 128, norm='bn', filters=3, reps=2, use_depthwise = use_depthwise),
-                                     conv_block(160, 64, norm='bn', filters=3, reps=2, use_depthwise = use_depthwise)
-                                     )
+        if n_deconvs == 2:
+            self.decode =  nn.Sequential(
+                                        conv_block(416, 128, norm='bn', filters=3, reps=2, use_depthwise = use_depthwise),
+                                        conv_block(160, 64, norm='bn', filters=3, reps=2, use_depthwise = use_depthwise)
+                                        )
+        elif n_deconvs == 3:
+            self.decode =  nn.Sequential(
+                                        conv_block(416, 128, norm='bn', filters=3, reps=2, use_depthwise = use_depthwise),
+                                        conv_block(160, 64, norm='bn', filters=3, reps=2, use_depthwise = use_depthwise),
+                                        conv_block(88, 32, norm='bn', filters=3, reps=2, use_depthwise = use_depthwise)
+                                        )
+        else:
+            raise Exception("Not support this number of deconv blocks!!!!")
+        self.last_conv = nn.Conv2d(self.decode[-1].out_channels, 21, (1,1), 1)
         self.output = nn.Sigmoid()
     def forward(self, x):
-        e1 = self.eblock_1(x)
-        e2 = self.eblock_2(e1)
-        e3 = self.eblock_3(e2)
-        e4 = self.eblock_4(e3)
-        e5 = self.eblock_5(e4)
-        x = self.upsampling(e5)
-        conc1 = torch.cat([x, e4], dim = 1)
-        x = self.decode[0](conc1)
-        x = self.upsampling(x)
-        conc2 = torch.cat([x, e3], dim=1)
-        x = self.decode[1](conc2)
-        # # x = self.pre_model.layer4(x)
+        e = [x]
+        e.append(self.eblock_1(e[-1]))
+        e.append(self.eblock_2(e[-1]))
+        e.append(self.eblock_3(e[-1]))
+        e.append(self.eblock_4(e[-1]))
+        e.append(self.eblock_5(e[-1]))
+        for i, block in enumerate(self.decode):
+            x = self.upsampling(e[-i-1])
+            conc = torch.cat([x, e[-i-2]], dim = 1)
+            x = block(conc)
         x = self.last_conv(x)
         x = self.output(x)
         return x
 
-def build_detection_based_model(model_name, n_kps=7, pretrained=True):
-    if model_name == 'efficient':
+def build_detection_based_model(model_name, n_kps=7, pretrained=True, n_deconvs=2):
+    if model_name == 'efficient_encode':
         pre_model = EfficientNet.from_pretrained('efficientnet-b2')
         for param in pre_model.parameters():
             param.requires_grad = True
         model = Efficient_head(pre_model, n_kps)
         return model
-    elif model_name == 'resnest':
+    elif model_name == 'resnest_encode':
         pre_model = resnest50(pretrained=pretrained)
         for param in pre_model.parameters():
             param.requires_grad = True
         model = ResNeSt_head(pre_model, n_kps)
         return model
-    elif model_name == 'mobile':
-        pre_model = mobilenet_v2(pretrained=False)
+    elif model_name == 'mobile_deconv':
+        pre_model = mobilenet_v2(pretrained=pretrained)
         for param in pre_model.parameters():
             param.requires_grad = True
-        model = MobileNet_head(pre_model, use_depthwise = use_depthwise)
+        model = MobileNet_deconv(pre_model, n_deconvs=n_deconvs, use_depthwise = use_depthwise)
         return model
-    elif model_name == 'shuffle':
-        pre_model = shufflenet_v2_x1_0(pretrained=False)
+    elif model_name == 'shuffle_deconv':
+        pre_model = shufflenet_v2_x1_0(pretrained=pretrained)
         for param in pre_model.parameters():
             param.requires_grad = True
-        model = ShuffleNet_head(pre_model, use_depthwise = use_depthwise)
+        model = ShuffleNet_deconv(pre_model, n_deconvs=n_deconvs, use_depthwise = use_depthwise)
         return model
     else:
     print('Not support this model!')
