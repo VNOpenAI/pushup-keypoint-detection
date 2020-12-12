@@ -41,7 +41,7 @@ class conv_block(nn.Module):
     return x
 
 class ResNeSt_head(nn.Module):
-    def __init__(self, pre_model):
+    def __init__(self, pre_model, use_depthwise = False):
         super(ResNeSt_head, self).__init__()
         self.pre_model = pre_model
         # self.pre_model.layer3 = nn.Identity()
@@ -51,7 +51,7 @@ class ResNeSt_head(nn.Module):
         self.last_conv = nn.Conv2d(512, 21, (1,1), 1)
         self.upsampling = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
         self.decode =  nn.Sequential(
-                                     conv_block(1536, 512, norm='bn', filters=3, reps=2),
+                                     conv_block(1536, 512, norm='bn', filters=3, reps=2, use_depthwise = use_depthwise),
                                     #  conv_block(256, 512, norm='bn', filters=3, reps=1),
                                     #  conv_block(512, 256, norm='bn', filters=1, reps=1)
                                      )
@@ -68,6 +68,43 @@ class ResNeSt_head(nn.Module):
         conc1 = torch.cat([up1, x], dim = 1)
         # print(conc1.shape)
         x = self.decode(conc1)
+        # x = self.pre_model.layer4(x)
+        x = self.last_conv(x)
+        x = self.output(x)
+        return x
+
+class ResNeSt2_head(nn.Module):
+    def __init__(self, pre_model, use_depthwise = False):
+        super(ResNeSt2_head, self).__init__()
+        self.pre_model = pre_model
+        # self.pre_model.layer3 = nn.Identity()
+        self.pre_model.layer4 = nn.Identity()
+        self.pre_model.avgpool = nn.Identity()
+        self.pre_model.fc = nn.Identity()
+        self.last_conv = nn.Conv2d(256, 21, (1,1), 1)
+        self.upsampling = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+        self.decode =  nn.Sequential(
+                                     conv_block(1536, 512, norm='bn', filters=3, reps=2, use_depthwise = use_depthwise),
+                                     conv_block(768, 256, norm='bn', filters=3, reps=1, use_depthwise = use_depthwise),
+                                    #  conv_block(512, 256, norm='bn', filters=1, reps=1)
+                                     )
+        self.output = nn.Sigmoid()
+    def forward(self, x):
+        x = self.pre_model.conv1(x)
+        x = self.pre_model.bn1(x)
+        x = self.pre_model.relu(x)
+        x = self.pre_model.maxpool(x)
+        e1 = self.pre_model.layer1(x)
+        e2= self.pre_model.layer2(x)
+        e3 = self.pre_model.layer3(x)
+        up1 = self.upsampling(e3)
+        conc1 = torch.cat([up1, e2], dim = 1)
+        # print(conc1.shape)
+        x = self.decode(conc1)
+        conc2 = torch.cat([x, e1], dim=1)
+        x = self.decode[1](conc2)
+        # # x = self.pre_model.layer4(x)
+        x = self.last_conv(x)
         # x = self.pre_model.layer4(x)
         x = self.last_conv(x)
         x = self.output(x)
