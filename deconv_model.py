@@ -108,9 +108,6 @@ class ResNeSt2_head(nn.Module):
         up2 = self.upsampling(x)
         conc2 = torch.cat([up2, e1], dim=1)
         x = self.decode[1](conc2)
-        # # x = self.pre_model.layer4(x)
-        x = self.last_conv(x)
-        # x = self.pre_model.layer4(x)
         x = self.last_conv(x)
         x = self.output(x)
         return x
