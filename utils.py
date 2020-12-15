@@ -53,13 +53,6 @@ class Efficient_encode(nn.Module):
         self._blocks = pre_model._blocks[:16]
         self.last_conv = nn.Conv2d(120, 3*n_kps, (1,1), 1)
         self.output = nn.Sigmoid()
-        # for block in self.pre_model._blocks[16:]:
-        #     block = nn.Identity()
-        # self.pre_model._conv_head = nn.Identity()
-        # self.pre_model._bn1 = nn.Identity()
-        # self.pre_model._avg_pooling = nn.Identity()
-        # self.pre_model._dropout = nn.Identity()
-        # self.pre_model._fc = nn.Identity()
     def forward(self, x):
         x = self._conv_stem(x)
         x = self._bn0(x)
@@ -79,9 +72,6 @@ class ResNeSt_encode(nn.Module):
         self.layer1 = pre_model.layer1
         self.layer2 = pre_model.layer2
         self.layer3 = pre_model.layer3
-        # self.pre_model.fc = nn.Identity()
-        # self.pre_model.avgpool = nn.Identity()
-        # self.pre_model.layer4 = nn.Identity()
         self.last_conv = nn.Conv2d(1024, 3*n_kps, (1,1), 1)
         self.output = nn.Sigmoid()
     def forward(self, x):
