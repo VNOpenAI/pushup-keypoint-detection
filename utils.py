@@ -89,11 +89,10 @@ class ResNeSt_encode(nn.Module):
 class ShuffleNet_deconv(nn.Module):
     def __init__(self, pre_model, n_deconvs=2, use_depthwise = False):
         super(ShuffleNet_deconv, self).__init__()
-        self.conv1 = pre_model.conv1
-        self.maxpool = pre_model.maxpool
-        self.stage2 = pre_model.stage2
-        self.stage3 = pre_model.stage3
-        self.stage4 = pre_model.stage4
+        self.encoder = nn.Sequential(
+                                    pre_model.conv1, pre_model.maxpool, pre_model.stage2,
+                                    pre_model.stage3, pre_model.stage4
+                                    )
         self.upsampling = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
         if n_deconvs == 2:
             self.decode =  nn.Sequential(
@@ -112,13 +111,11 @@ class ShuffleNet_deconv(nn.Module):
         self.output = nn.Sigmoid()
     def forward(self, x):
         e = [x]
-        e.append(self.conv1(x))
-        e.append(self.maxpool(e[-1]))
-        e.append(self.stage2(e[-1]))
-        e.append(self.stage3(e[-1]))
-        e.append(self.stage4(e[-1]))
+        for eblock in self.encoder:
+            e.append(eblock(e[-1]))
+        x = e[-1]
         for i, block in enumerate(self.decode):
-            x = self.upsampling(e[-i-1])
+            x = self.upsampling(x)
             conc = torch.cat([x, e[-i-2]], dim = 1)
             x = block(conc)
         x = self.last_conv(x)
@@ -128,11 +125,10 @@ class ShuffleNet_deconv(nn.Module):
 class MobileNet_deconv(nn.Module):
     def __init__(self, pre_model, n_deconvs=2, use_depthwise = False):
         super(MobileNet_deconv, self).__init__()
-        self.eblock_1 = pre_model.features[:2]
-        self.eblock_2 = pre_model.features[2:4]
-        self.eblock_3 = pre_model.features[4:7]
-        self.eblock_4 = pre_model.features[7:14]
-        self.eblock_5 = pre_model.features[14:-1]
+        self.encoder = nn.Sequential(
+                                    pre_model.features[:2], pre_model.features[2:4], pre_model.features[4:7],
+                                    pre_model.features[7:14], pre_model.features[14:-1]
+                                    )
         self.upsampling = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
         if n_deconvs == 2:
             self.decode =  nn.Sequential(
@@ -151,13 +147,11 @@ class MobileNet_deconv(nn.Module):
         self.output = nn.Sigmoid()
     def forward(self, x):
         e = [x]
-        e.append(self.eblock_1(e[-1]))
-        e.append(self.eblock_2(e[-1]))
-        e.append(self.eblock_3(e[-1]))
-        e.append(self.eblock_4(e[-1]))
-        e.append(self.eblock_5(e[-1]))
+        for eblock in self.encoder:
+            e.append(eblock(e[-1]))
+        x = e[-1]
         for i, block in enumerate(self.decode):
-            x = self.upsampling(e[-i-1])
+            x = self.upsampling(x)
             conc = torch.cat([x, e[-i-2]], dim = 1)
             x = block(conc)
         x = self.last_conv(x)
@@ -189,10 +183,10 @@ class ResNeSt_deconv(nn.Module):
     def forward(self, x):
         e = [x]
         for eblock in self.encoder:
-            e.append(eblock(eblock(e[-1])))
-        
+            e.append(eblock(e[-1]))
+        x = e[-1]
         for i, deblock in enumerate(self.decode):
-            x = self.upsampling(e[-i-1])
+            x = self.upsampling(x)
             conc = torch.cat([x, e[-i-2]], dim = 1)
             x = deblock(conc)
 
