@@ -107,7 +107,7 @@ class ShuffleNet_deconv(nn.Module):
                                         )
         else:
             raise Exception("Not support this number of deconv blocks!!!!")
-        self.last_conv = nn.Conv2d(self.decode[-1].out_channels, 21, (1,1), 1)
+        self.last_conv = nn.Conv2d(self.decode[-1].out_c, 21, (1,1), 1)
         self.output = nn.Sigmoid()
     def forward(self, x):
         e = [x]
